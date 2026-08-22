@@ -1,12 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:gap/gap.dart';
@@ -600,17 +601,6 @@ class _PlayerLyrics extends HookConsumerWidget {
     dynamic lrclibProviderInstance,
     BuildContext context,
   ) {
-    // Get lyrics mode setting
-    final lyricsMode = ref.watch(lyricsModeProvider);
-    final isDesktop = MediaQuery.sizeOf(context).width > 800;
-
-    // Determine if we should use curved (desktop-style) or flat (mobile-style) lyrics
-    final useCurvedStyle = switch (lyricsMode) {
-      LyricsMode.curved => true,
-      LyricsMode.flat => false,
-      LyricsMode.auto =>
-        isDesktop, // Auto mode: curved on desktop, flat on mobile
-    };
     if (track.lyrics == null) {
       // Show fetch lyrics UI
       return Column(
@@ -654,62 +644,20 @@ class _PlayerLyrics extends HookConsumerWidget {
         );
       } else {
         // Plain text lyrics
-        if (useCurvedStyle) {
-          return ListWheelScrollView.useDelegate(
-            itemExtent: 50,
-            perspective: 0.001,
-            offAxisFraction: isDesktop ? 1.5 : 0,
-            squeeze: 1.0,
-            diameterRatio: isDesktop
-                ? 2
-                : RenderListWheelViewport.defaultDiameterRatio,
-            physics: const FixedExtentScrollPhysics(),
-            childDelegate: ListWheelChildBuilderDelegate(
-              childCount: lyricsData.lines.length,
-              builder: (context, index) {
-                final line = lyricsData.lines[index];
-                return Align(
-                  alignment: isDesktop
-                      ? Alignment.centerRight
-                      : Alignment.center,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isDesktop
-                          ? MediaQuery.sizeOf(context).width * 0.4
-                          : MediaQuery.sizeOf(context).width * 0.8,
-                    ),
-                    child: Container(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Text(
-                        line.text,
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        textAlign: TextAlign.left,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
-        } else {
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: lyricsData.lines.length,
-            itemBuilder: (context, index) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(
-                  lyricsData.lines[index].text,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                  textAlign: TextAlign.center,
-                ),
-              );
-            },
-          );
-        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: lyricsData.lines.length,
+          itemBuilder: (context, index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                lyricsData.lines[index].text,
+                style: Theme.of(context).textTheme.bodyLarge,
+                textAlign: TextAlign.center,
+              ),
+            );
+          },
+        );
       }
     } catch (e) {
       return Center(child: Text('errorLoadingLyrics'.tr(args: [e.toString()])));
@@ -1373,6 +1321,265 @@ class _QueueView extends HookConsumerWidget {
   }
 }
 
+class _FanLyricsView extends HookConsumerWidget {
+  final LyricsData lyrics;
+  final Player player;
+  final db.Track track;
+
+  const _FanLyricsView({
+    required this.lyrics,
+    required this.player,
+    required this.track,
+  });
+
+  static const int _half = 5;
+  static const double _itemExtent = 56;
+  static const Duration _animDuration = Duration(milliseconds: 550);
+  static const Curve _animCurve = Curves.easeOutCubic;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final displayCenter = useState(0);
+    final userScrolling = useState(false);
+    final dragAccum = useRef(0.0);
+    final snapTimer = useRef<Timer?>(null);
+
+    useEffect(() => () => snapTimer.value?.cancel(), const []);
+
+    void scheduleSnap() {
+      snapTimer.value?.cancel();
+      snapTimer.value = Timer(const Duration(seconds: 1), () {
+        userScrolling.value = false;
+      });
+    }
+
+    void step(int direction) {
+      userScrolling.value = true;
+      var next = displayCenter.value + direction;
+      if (next < 0) next = 0;
+      if (next >= lyrics.lines.length) next = lyrics.lines.length - 1;
+      if (next != displayCenter.value) {
+        displayCenter.value = next;
+      }
+      scheduleSnap();
+    }
+
+    return StreamBuilder<Duration>(
+      stream: player.stream.position,
+      initialData: player.state.position,
+      builder: (context, snapshot) {
+        final positionMs =
+            (snapshot.data ?? Duration.zero).inMilliseconds +
+            track.lyricsOffset;
+        final total = lyrics.lines.length;
+        if (total == 0) {
+          return const SizedBox.shrink();
+        }
+
+        int currentIndex = 0;
+        for (int i = 0; i < total; i++) {
+          if ((lyrics.lines[i].timeMs ?? 0) <= positionMs) {
+            currentIndex = i;
+          } else {
+            break;
+          }
+        }
+
+        if (!userScrolling.value && displayCenter.value != currentIndex) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            displayCenter.value = currentIndex;
+          });
+        }
+
+        final centerIdx = userScrolling.value
+            ? displayCenter.value
+            : currentIndex;
+
+        double progress = 0.0;
+        final activeStart = lyrics.lines[currentIndex].timeMs ?? 0;
+        final activeEnd = currentIndex < total - 1
+            ? (lyrics.lines[currentIndex + 1].timeMs ?? activeStart)
+            : player.state.duration.inMilliseconds;
+        if (activeEnd > activeStart) {
+          progress = ((positionMs - activeStart) / (activeEnd - activeStart))
+              .clamp(0.0, 1.0);
+        }
+
+        // Render one extra faded ring beyond the visible window so rows
+        // slide in/out smoothly while stepping.
+        final aboveCount = math.min(_half + 1, centerIdx);
+        final belowCount = math.min(_half + 1, total - 1 - centerIdx);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final paneW = constraints.maxWidth;
+            final paneH = constraints.maxHeight;
+
+            // Virtual circle: its center sits far to the left of the pane.
+            // Every visible line's center lies on the same radius, and each
+            // line is rotated by its own angular position so all lines stay
+            // tangent to the circle, forming a true fan/arc. A distant pivot
+            // keeps the per-row tilt small for a gentle, silky curve.
+            final lineWidth = math
+                .min(paneW * 0.68, 640.0)
+                .clamp(220.0, double.infinity);
+            final pivot = Offset(-paneW * 0.25, paneH / 2);
+            final radius = math.max(paneW * 0.62 - pivot.dx, 420.0);
+            final angleStep = math.asin((_itemExtent / radius).clamp(0.0, 1.0));
+
+            Widget buildLine(int i) {
+              final line = lyrics.lines[i];
+              final signedDist = (i - centerIdx).toDouble();
+              final dist = signedDist.abs();
+              final isActiveLine = i == currentIndex;
+              final t = dist / _half;
+
+              double opacity;
+              if (i == centerIdx) {
+                opacity = 1.0;
+              } else if (dist > _half) {
+                // Extra ring outside the visible window: fully transparent
+                // so entering/exiting rows fade instead of popping.
+                opacity = 0.0;
+              } else {
+                opacity = math.max(0.25, 1.0 - t * 0.6);
+              }
+              final textAlpha = math.max(0.4, 0.85 - t * 0.45);
+
+              final theme = Theme.of(context);
+              final dimColor = theme.colorScheme.onSurface.withValues(
+                alpha: textAlpha,
+              );
+
+              Widget lineChild = Text(
+                line.text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              );
+
+              if (isActiveLine && progress > 0.0 && progress < 1.0) {
+                lineChild = ShaderMask(
+                  shaderCallback: (bounds) =>
+                      LinearGradient(
+                        colors: [theme.colorScheme.primary, dimColor],
+                        stops: [progress, progress],
+                      ).createShader(bounds),
+                  child: Text(
+                    line.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                );
+              }
+
+              return Align(
+                alignment: Alignment.topLeft,
+                child: AnimatedOpacity(
+                  opacity: opacity,
+                  duration: _animDuration,
+                  curve: _animCurve,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(end: signedDist * angleStep),
+                    duration: _animDuration,
+                    curve: _animCurve,
+                    builder: (context, theta, child) {
+                      // Center of this line on the shared circle; rotating
+                      // the line by theta about its own center equals
+                      // rotating it rigidly about the virtual pivot.
+                      final center = Offset(
+                        pivot.dx + radius * math.cos(theta),
+                        pivot.dy + radius * math.sin(theta),
+                      );
+                      return Transform.translate(
+                        offset: Offset(
+                          center.dx - lineWidth / 2,
+                          center.dy - _itemExtent / 2,
+                        ),
+                        child: Transform.rotate(
+                          angle: theta,
+                          alignment: Alignment.center,
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: InkWell(
+                      onTap: () {
+                        if (line.timeMs != null) {
+                          player.seek(Duration(milliseconds: line.timeMs!));
+                        }
+                      },
+                      child: SizedBox(
+                        width: lineWidth,
+                        height: _itemExtent,
+                        child: Center(
+                          child: AnimatedDefaultTextStyle(
+                            duration: _animDuration,
+                            curve: _animCurve,
+                            style: theme.textTheme.bodyLarge!.copyWith(
+                              fontSize: 16,
+                              fontWeight: isActiveLine
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                              color: isActiveLine
+                                  ? theme.colorScheme.primary
+                                  : dimColor,
+                            ),
+                            child: lineChild,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            final visibleLines = <Widget>[
+              const Positioned.fill(
+                child: ColoredBox(color: Colors.transparent),
+              ),
+              for (int d = -aboveCount; d <= belowCount; d++)
+                buildLine(centerIdx + d),
+            ];
+
+            return GestureDetector(
+              onVerticalDragUpdate: (details) {
+                dragAccum.value += details.delta.dy;
+                while (dragAccum.value >= _itemExtent) {
+                  step(1);
+                  dragAccum.value -= _itemExtent;
+                }
+                while (dragAccum.value <= -_itemExtent) {
+                  step(-1);
+                  dragAccum.value += _itemExtent;
+                }
+              },
+              onVerticalDragEnd: (_) {
+                dragAccum.value = 0;
+                scheduleSnap();
+              },
+              child: Listener(
+                onPointerSignal: (event) {
+                  if (event is PointerScrollEvent) {
+                    if (event.scrollDelta.dy > 10) {
+                      step(1);
+                    } else if (event.scrollDelta.dy < -10) {
+                      step(-1);
+                    }
+                  }
+                },
+                child: ClipRect(child: Stack(children: visibleLines)),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
 class _TimedLyricsView extends HookConsumerWidget {
   final LyricsData lyrics;
   final Player player;
@@ -1400,10 +1607,6 @@ class _TimedLyricsView extends HookConsumerWidget {
 
     final listController = useMemoized(() => ListController(), []);
     final scrollController = useScrollController();
-    final wheelScrollController = useMemoized(
-      () => FixedExtentScrollController(),
-      [],
-    );
     final previousIndex = useState(-1);
 
     // Use track directly to access lyrics offset
@@ -1430,125 +1633,20 @@ class _TimedLyricsView extends HookConsumerWidget {
         if (currentIndex != previousIndex.value) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             previousIndex.value = currentIndex;
-            if (useCurvedStyle) {
-              if (wheelScrollController.hasClients) {
-                wheelScrollController.animateToItem(
-                  currentIndex,
-                  duration: const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                );
-              }
-            } else {
-              listController.animateToItem(
-                index: currentIndex,
-                scrollController: scrollController,
-                alignment: 0.5,
-                duration: (_) => const Duration(milliseconds: 300),
-                curve: (_) => Curves.easeOutCubic,
-              );
-            }
+            listController.animateToItem(
+              index: currentIndex,
+              scrollController: scrollController,
+              alignment: 0.5,
+              duration: (_) => const Duration(milliseconds: 300),
+              curve: (_) => Curves.easeOutCubic,
+            );
           });
         }
 
         final totalDurationMs = player.state.duration.inMilliseconds;
 
         if (useCurvedStyle) {
-          return ListWheelScrollView.useDelegate(
-            controller: wheelScrollController,
-            itemExtent: 50,
-            perspective: 0.001,
-            offAxisFraction: isDesktop ? 1.5 : 0,
-            squeeze: 1.0,
-            diameterRatio: isDesktop
-                ? 2
-                : RenderListWheelViewport.defaultDiameterRatio,
-            physics: const FixedExtentScrollPhysics(),
-            childDelegate: ListWheelChildBuilderDelegate(
-              childCount: lyrics.lines.length,
-              builder: (context, index) {
-                final line = lyrics.lines[index];
-                final isActive = index == currentIndex;
-
-                // Calculate progress within the current line for fill effect
-                double progress = 0.0;
-                if (isActive) {
-                  final startTime = line.timeMs ?? 0;
-                  final endTime = index < lyrics.lines.length - 1
-                      ? (lyrics.lines[index + 1].timeMs ?? startTime)
-                      : totalDurationMs;
-                  if (endTime > startTime) {
-                    progress =
-                        ((positionMs - startTime) / (endTime - startTime))
-                            .clamp(0.0, 1.0);
-                  }
-                }
-
-                return Align(
-                  alignment: isDesktop
-                      ? Alignment.centerRight
-                      : Alignment.center,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: isDesktop
-                          ? MediaQuery.sizeOf(context).width * 0.4
-                          : MediaQuery.sizeOf(context).width * 0.8,
-                    ),
-                    child: InkWell(
-                      onTap: () {
-                        if (line.timeMs != null) {
-                          player.seek(Duration(milliseconds: line.timeMs!));
-                        }
-                      },
-                      child: Container(
-                        alignment: Alignment.centerLeft,
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 200),
-                          style: Theme.of(context).textTheme.bodyLarge!
-                              .copyWith(
-                                fontSize: isActive ? 18 : 16,
-                                fontWeight: isActive
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
-                                color: isActive
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurface
-                                          .withValues(alpha: 0.7),
-                              ),
-                          textAlign: TextAlign.left,
-                          child: () {
-                            final displayText = line.text;
-
-                            return isActive && progress > 0.0 && progress < 1.0
-                                ? ShaderMask(
-                                    shaderCallback: (bounds) => LinearGradient(
-                                      colors: [
-                                        Theme.of(context).colorScheme.primary,
-                                        Theme.of(context).colorScheme.onSurface
-                                            .withValues(alpha: 0.7),
-                                      ],
-                                      stops: [progress, progress],
-                                    ).createShader(bounds),
-                                    child: Text(
-                                      displayText,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  )
-                                : Text(
-                                    displayText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  );
-                          }(),
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          );
+          return _FanLyricsView(lyrics: lyrics, player: player, track: track);
         }
 
         return SuperListView.builder(

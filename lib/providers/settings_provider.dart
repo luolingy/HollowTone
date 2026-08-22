@@ -24,7 +24,7 @@ enum DefaultPlayerScreen {
 }
 
 enum LyricsMode {
-  curved('Curved'),
+  curved('Fan'),
   flat('Flat'),
   auto('Auto');
 
