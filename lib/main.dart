@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:groovybox/logic/audio_handler.dart';
 import 'package:groovybox/data/track_repository.dart';
 import 'package:groovybox/logic/mpv_hot_restart_cleaner.dart';
+import 'package:groovybox/logic/tray_helpers.dart';
 import 'package:groovybox/logic/window_helpers.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/theme_provider.dart';
@@ -73,6 +74,8 @@ class _GroovyAppState extends ConsumerState<GroovyApp> {
   @override
   void initState() {
     super.initState();
+    // Keep the app resident in the system tray on desktop platforms.
+    Future(() => trayWindowHandler.init());
     // Heal tracks that were imported with broken metadata (e.g. empty titles
     // from flutter_media_metadata's Windows non-ASCII path bug).
     Future(() async {
