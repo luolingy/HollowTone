@@ -48,5 +48,6 @@ Filename: "{app}\groovybox.exe"; Description: "Launch GroovyBox"; Flags: nowait 
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{userappdata}\dev.solsynth\GroovyBox"
+Type: filesandordirs; Name: "{userappdata}\io.qzz.luolingy\groovybox"
 Type: files; Name: "{group}\GroovyBox.lnk" ;
 Type: files; Name: "{autodesktop}\GroovyBox.lnk" ;

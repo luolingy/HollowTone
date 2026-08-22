@@ -34,7 +34,7 @@ Future<void> main() async {
   _audioHandler = await audio_service.AudioService.init(
     builder: () => AudioHandler(),
     config: const audio_service.AudioServiceConfig(
-      androidNotificationChannelId: 'dev.solsynth.rhythmBox.channel.audio',
+      androidNotificationChannelId: 'io.qzz.luolingy.groovybox.channel.audio',
       androidNotificationChannelName: 'GroovyBox Audio',
       androidNotificationOngoing: true,
     ),
