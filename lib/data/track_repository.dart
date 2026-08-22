@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:groovybox/data/db.dart';
+import 'package:groovybox/logic/metadata_service.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/db_provider.dart';
 import 'package:groovybox/providers/settings_provider.dart';
@@ -54,10 +54,10 @@ class TrackRepository extends _$TrackRepository {
     final db = ref.read(databaseProvider);
     final appDir = await getApplicationDocumentsDirectory();
     final musicDir = Directory(p.join(appDir.path, 'music'));
-    final artDir = Directory(p.join(appDir.path, 'art'));
 
     await musicDir.create(recursive: true);
-    await artDir.create(recursive: true);
+
+    final metadataService = MetadataService();
 
     for (final path in filePaths) {
       final file = File(path);
@@ -72,28 +72,19 @@ class TrackRepository extends _$TrackRepository {
         await file.copy(newPath);
 
         // 2. Extract Metadata
-        final metadata = await MetadataRetriever.fromFile(File(newPath));
-
-        String? artPath;
-        if (metadata.albumArt != null) {
-          final artName = '${uniqueName}_art.jpg';
-          final artFile = File(p.join(artDir.path, artName));
-          await artFile.writeAsBytes(metadata.albumArt!);
-          artPath = artFile.path;
-        }
+        final metadata = await metadataService.getMetadata(newPath);
 
         // 3. Insert into DB
         await db
             .into(db.tracks)
             .insert(
               TracksCompanion.insert(
-                title:
-                    metadata.trackName ?? p.basenameWithoutExtension(filename),
+                title: metadata.title ?? p.basenameWithoutExtension(filename),
                 path: newPath, // Internal path
-                artist: Value(metadata.trackArtistNames?.join(', ')),
-                album: Value(metadata.albumName),
-                duration: Value(metadata.trackDuration), // Milliseconds
-                artUri: Value(artPath),
+                artist: Value(metadata.artist),
+                album: Value(metadata.album),
+                duration: Value(metadata.durationMs), // Milliseconds
+                artUri: Value(await _storeAlbumArt(metadata.artBytes)),
               ),
               mode: InsertMode.insertOrIgnore,
             );
@@ -104,12 +95,27 @@ class TrackRepository extends _$TrackRepository {
     }
   }
 
-  Future<void> _importFilesInPlace(List<String> filePaths) async {
-    final db = ref.read(databaseProvider);
-    final appDir = await getApplicationDocumentsDirectory();
-    final artDir = Directory(p.join(appDir.path, 'art'));
+  /// Stores cover art bytes in the internal art directory and returns the
+  /// resulting file path (or `null` when there is nothing to store).
+  Future<String?> _storeAlbumArt(Uint8List? artBytes) async {
+    if (artBytes == null || artBytes.isEmpty) return null;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final artDir = Directory(p.join(appDir.path, 'art'));
+      await artDir.create(recursive: true);
+      final artFile = File(
+        p.join(artDir.path, '${DateTime.now().millisecondsSinceEpoch}_art.jpg'),
+      );
+      await artFile.writeAsBytes(artBytes);
+      return artFile.path;
+    } catch (e) {
+      debugPrint('Error storing album art: $e');
+      return null;
+    }
+  }
 
-    await artDir.create(recursive: true);
+  Future<void> _importFilesInPlace(List<String> filePaths) async {
+    final metadataService = MetadataService();
 
     for (final path in filePaths) {
       final file = File(path);
@@ -117,37 +123,104 @@ class TrackRepository extends _$TrackRepository {
 
       try {
         // 1. Extract Metadata from original file
-        final metadata = await MetadataRetriever.fromFile(file);
+        final metadata = await metadataService.getMetadata(path);
         final filename = p.basename(path);
 
-        String? artPath;
-        if (metadata.albumArt != null) {
-          // Store album art in internal directory
-          final artName =
-              '${p.basenameWithoutExtension(filename)}_${DateTime.now().millisecondsSinceEpoch}_art.jpg';
-          final artFile = File(p.join(artDir.path, artName));
-          await artFile.writeAsBytes(metadata.albumArt!);
-          artPath = artFile.path;
-        }
-
         // 2. Insert into DB with original path
-        await db
-            .into(db.tracks)
-            .insert(
-              TracksCompanion.insert(
-                title:
-                    metadata.trackName ?? p.basenameWithoutExtension(filename),
-                path: path, // Original path for in-place indexing
-                artist: Value(metadata.trackArtistNames?.join(', ')),
-                album: Value(metadata.albumName),
-                duration: Value(metadata.trackDuration), // Milliseconds
-                artUri: Value(artPath),
-              ),
-              mode: InsertMode.insertOrIgnore,
-            );
+        await _insertTrack(
+          title: metadata.title ?? p.basenameWithoutExtension(filename),
+          path: path, // Original path for in-place indexing
+          artist: metadata.artist,
+          album: metadata.album,
+          durationMs: metadata.durationMs,
+          artPath: await _storeAlbumArt(metadata.artBytes),
+        );
       } catch (e) {
         debugPrint('Error importing file $path: $e');
         // Continue to next file
+      }
+    }
+  }
+
+  Future<void> _insertTrack({
+    required String title,
+    required String path,
+    String? artist,
+    String? album,
+    int? durationMs,
+    String? artPath,
+  }) async {
+    final db = ref.read(databaseProvider);
+    await db
+        .into(db.tracks)
+        .insert(
+          TracksCompanion.insert(
+            title: title,
+            path: path,
+            artist: Value(artist),
+            album: Value(album),
+            duration: Value(durationMs), // Milliseconds
+            artUri: Value(artPath),
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+  }
+
+  /// Re-reads tags for tracks that were imported with broken or missing
+  /// metadata (e.g. empty titles caused by flutter_media_metadata's Windows
+  /// non-ASCII path bug), so existing libraries heal without re-importing.
+  Future<void> repairTracksWithMissingInfo() async {
+    final db = ref.read(databaseProvider);
+
+    final badTracks =
+        await (db.select(db.tracks)
+              ..where(
+                (t) =>
+                    t.title.equals('') |
+                    t.artist.equals('') |
+                    t.duration.isNull(),
+              ))
+            .get();
+
+    if (badTracks.isEmpty) return;
+    debugPrint('Repairing metadata for ${badTracks.length} track(s)...');
+
+    final metadataService = MetadataService();
+
+    for (final track in badTracks) {
+      try {
+        final metadata = await metadataService.getMetadata(track.path);
+        final needsTitle = track.title.trim().isEmpty;
+        final needsArtist =
+            track.artist == null || track.artist!.trim().isEmpty;
+        final needsAlbum = track.album == null || track.album!.trim().isEmpty;
+
+        await (db.update(
+          db.tracks,
+        )..where((t) => t.id.equals(track.id))).write(
+          TracksCompanion(
+            title: needsTitle
+                ? Value(
+                    metadata.title ??
+                        MetadataService.fallbackTitle(track.path),
+                  )
+                : const Value.absent(),
+            artist: needsArtist
+                ? Value(metadata.artist)
+                : const Value.absent(),
+            album: needsAlbum
+                ? Value(metadata.album)
+                : const Value.absent(),
+            duration: track.duration == null
+                ? Value(metadata.durationMs)
+                : const Value.absent(),
+            artUri: track.artUri == null && metadata.artBytes != null
+                ? Value(await _storeAlbumArt(metadata.artBytes))
+                : const Value.absent(),
+          ),
+        );
+      } catch (e) {
+        debugPrint('Error repairing metadata for ${track.path}: $e');
       }
     }
   }

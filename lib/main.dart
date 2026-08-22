@@ -1,6 +1,8 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:groovybox/logic/audio_handler.dart';
+import 'package:groovybox/data/track_repository.dart';
+import 'package:groovybox/logic/mpv_hot_restart_cleaner.dart';
 import 'package:groovybox/logic/window_helpers.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/theme_provider.dart';
@@ -14,6 +16,10 @@ late AudioHandler _audioHandler;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Dispose mpv handles left over from a previous hot restart BEFORE
+  // media_kit initializes, to avoid "Callback invoked after it has been
+  // deleted" crashes in debug mode.
+  MpvHotRestartCleaner.clean();
   MediaKit.ensureInitialized();
 
   // Initialize EasyLocalization
@@ -64,6 +70,22 @@ class GroovyApp extends ConsumerStatefulWidget {
 }
 
 class _GroovyAppState extends ConsumerState<GroovyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Heal tracks that were imported with broken metadata (e.g. empty titles
+    // from flutter_media_metadata's Windows non-ASCII path bug).
+    Future(() async {
+      try {
+        await ref
+            .read(trackRepositoryProvider.notifier)
+            .repairTracksWithMissingInfo();
+      } catch (e) {
+        debugPrint('Track metadata repair failed: $e');
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);

@@ -41,6 +41,7 @@ dependencies:
   hooks_riverpod: ^3.1.0
   media_kit: ^1.2.6
   media_kit_libs_audio: ^1.0.7
+  ffi: ^2.1.0
   drift: ^2.30.0
   drift_flutter: ^0.2.8
   sqlite3_flutter_libs: ^0.5.41
@@ -49,6 +50,7 @@ dependencies:
   riverpod_annotation: ^4.0.0
   file_picker: ^10.3.8
   flutter_media_metadata: ^1.0.0+1
+  audio_metadata_reader: ^1.7.1
   animations: ^2.1.1
   gap: ^3.0.1
   styled_widget: ^0.4.1
