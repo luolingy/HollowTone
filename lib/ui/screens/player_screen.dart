@@ -1343,20 +1343,21 @@ class _FanLyricsView extends HookConsumerWidget {
     // makes manual dragging glide smoothly instead of jumping per line.
     final centerFraction = useState(0.0);
     final userScrolling = useState(false);
-    final snapTimer = useRef<Timer?>(null);
-
-    useEffect(() => () => snapTimer.value?.cancel(), const []);
+    // After the user finishes browsing, auto-tracking resumes only once
+    // playback — while actually playing — reaches a NEW line at least
+    // one second after release.
+    final releasedAt = useRef<DateTime?>(null);
+    final releasedOnIndex = useRef(-1);
+    final seenPlayingIndex = useRef(-1);
 
     void beginManualScroll() {
-      snapTimer.value?.cancel();
+      releasedAt.value = null;
       userScrolling.value = true;
     }
 
-    void scheduleSnap() {
-      snapTimer.value?.cancel();
-      snapTimer.value = Timer(const Duration(seconds: 1), () {
-        userScrolling.value = false;
-      });
+    void markReleased() {
+      releasedAt.value = DateTime.now();
+      releasedOnIndex.value = seenPlayingIndex.value;
     }
 
     void step(int direction) {
@@ -1367,7 +1368,7 @@ class _FanLyricsView extends HookConsumerWidget {
       if (target != centerFraction.value.round()) {
         centerFraction.value = target.toDouble();
       }
-      scheduleSnap();
+      markReleased();
     }
 
     return StreamBuilder<Duration>(
@@ -1389,6 +1390,26 @@ class _FanLyricsView extends HookConsumerWidget {
           } else {
             break;
           }
+        }
+
+        // Detect playback advancing to a new line while the user is
+        // browsing: hand control back only if it is still playing and the
+        // arrival happened more than a second after release. While paused,
+        // or before that, the view stays wherever the user left it.
+        final wasSeen = seenPlayingIndex.value;
+        seenPlayingIndex.value = currentIndex;
+        if (userScrolling.value &&
+            wasSeen >= 0 &&
+            currentIndex != wasSeen &&
+            player.state.playing &&
+            releasedAt.value != null &&
+            DateTime.now().difference(releasedAt.value!).inMilliseconds >
+                1000) {
+          releasedAt.value = null;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            userScrolling.value = false;
+            centerFraction.value = currentIndex.toDouble();
+          });
         }
 
         if (!userScrolling.value &&
@@ -1423,16 +1444,15 @@ class _FanLyricsView extends HookConsumerWidget {
             final paneW = constraints.maxWidth;
             final paneH = constraints.maxHeight;
 
-            // Virtual circle: its center sits far to the left of the pane.
+            // Virtual circle: its center sits to the left of the pane.
             // Every visible line's center lies on the same radius, and each
             // line is rotated by its own angular position so all lines stay
-            // tangent to the circle, forming a true fan/arc. A distant pivot
-            // keeps the per-row tilt small for a gentle, silky curve.
+            // tangent to the circle, forming a true fan/arc.
             final lineWidth = math
                 .min(paneW * 0.68, 640.0)
                 .clamp(220.0, double.infinity);
-            final pivot = Offset(-paneW * 0.25, paneH / 2);
-            final radius = math.max(paneW * 0.62 - pivot.dx, 420.0);
+            final pivot = Offset(-paneW * 0.15, paneH / 2);
+            final radius = math.max(paneW * 0.62 - pivot.dx, 360.0);
             final angleStep = math.asin((_itemExtent / radius).clamp(0.0, 1.0));
 
             Widget buildLine(int i) {
@@ -1569,15 +1589,15 @@ class _FanLyricsView extends HookConsumerWidget {
                 centerFraction.value = next;
               },
               onVerticalDragEnd: (_) {
-                // Snap to the nearest whole line, then resume auto-tracking
-                // after the usual idle delay.
+                // Snap to the nearest whole line; auto-tracking resumes
+                // later per the release rules above.
                 var snapped = centerFraction.value.round();
                 if (snapped < 0) snapped = 0;
                 if (snapped >= lyrics.lines.length) {
                   snapped = lyrics.lines.length - 1;
                 }
                 centerFraction.value = snapped.toDouble();
-                scheduleSnap();
+                markReleased();
               },
               child: Listener(
                 onPointerSignal: (event) {
