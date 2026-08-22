@@ -36,63 +36,67 @@ class TrackTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isPlaying
-            ? Theme.of(context).colorScheme.primary.withOpacity(0.2)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ListTile(
-        contentPadding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (leading != null) leading!,
-            AspectRatio(
-              aspectRatio: 1,
-              child: UniversalImage(
-                uri: track.artUri,
-                fit: BoxFit.cover,
-                borderRadius: BorderRadius.circular(8),
-                fallbackIcon: Symbols.music_note,
-                fallbackIconSize: 24,
-              ).clipRRect(all: 8),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          tileColor: isPlaying
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)
+              : Colors.transparent,
+          contentPadding: padding ?? const EdgeInsets.symmetric(horizontal: 16),
+          leading: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leading != null) leading!,
+              AspectRatio(
+                aspectRatio: 1,
+                child: UniversalImage(
+                  uri: track.artUri,
+                  fit: BoxFit.cover,
+                  borderRadius: BorderRadius.circular(8),
+                  fallbackIcon: Symbols.music_note,
+                  fallbackIconSize: 24,
+                ).clipRRect(all: 8),
+              ),
+            ],
+          ),
+          title: Text(
+            track.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+              color: isPlaying
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface,
             ),
-          ],
-        ),
-        title: Text(
-          track.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-            color: isPlaying
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).colorScheme.onSurface,
           ),
-        ),
-        subtitle: Text(
-          "${track.artist ?? 'Unknown Artist'} • ${_formatDuration(track.duration)}",
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+          subtitle: Text(
+            "${track.artist ?? 'Unknown Artist'} • ${_formatDuration(track.duration)}",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.2),
+            ),
           ),
+          trailing: showTrailingIcon
+              ? IconButton(
+                  icon: const Icon(Symbols.more_vert),
+                  onPressed: onTrailingPressed,
+                )
+              : isPlaying
+              ? Icon(
+                  Symbols.play_arrow,
+                  color: Theme.of(context).colorScheme.primary,
+                )
+              : null,
+          onTap: onTap,
+          onLongPress: onLongPress,
         ),
-        trailing: showTrailingIcon
-            ? IconButton(
-                icon: const Icon(Symbols.more_vert),
-                onPressed: onTrailingPressed,
-              )
-            : isPlaying
-            ? Icon(
-                Symbols.play_arrow,
-                color: Theme.of(context).colorScheme.primary,
-              )
-            : null,
-        onTap: onTap,
-        onLongPress: onLongPress,
       ),
     );
   }

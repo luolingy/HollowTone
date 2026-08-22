@@ -84,7 +84,9 @@ class LibraryScreen extends HookConsumerWidget {
                   onPressed: clearSelection,
                 ),
                 title: Text(
-                  'selected'.tr(args: [selectedTrackIds.value.length.toString()]),
+                  'selected'.tr(
+                    args: [selectedTrackIds.value.length.toString()],
+                  ),
                 ).textColor(Theme.of(context).colorScheme.onPrimary),
                 backgroundColor: Theme.of(context).colorScheme.primary,
                 actions: [
@@ -200,7 +202,7 @@ class LibraryScreen extends HookConsumerWidget {
                         const Gap(8),
                       ],
                     )),
-        body: Container(
+        body: Material(
           color: Theme.of(context).colorScheme.surfaceContainer,
           child: Row(
             children: [
@@ -229,7 +231,7 @@ class LibraryScreen extends HookConsumerWidget {
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                   ),
-                  child: ColoredBox(
+                  child: Material(
                     color: Theme.of(context).colorScheme.surface,
                     child: _buildTabContent(
                       selectedTab.value,
@@ -259,7 +261,9 @@ class LibraryScreen extends HookConsumerWidget {
                     onPressed: clearSelection,
                   ),
                   title: Text(
-                    'selected'.tr(args: [selectedTrackIds.value.length.toString()]),
+                    'selected'.tr(
+                      args: [selectedTrackIds.value.length.toString()],
+                    ),
                   ).textColor(Theme.of(context).colorScheme.onPrimary),
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   actions: [
@@ -299,7 +303,10 @@ class LibraryScreen extends HookConsumerWidget {
                     tabs: [
                       Tab(text: 'tracks'.tr(), icon: Icon(Symbols.audiotrack)),
                       Tab(text: 'albums'.tr(), icon: Icon(Symbols.album)),
-                      Tab(text: 'playlists'.tr(), icon: Icon(Symbols.queue_music)),
+                      Tab(
+                        text: 'playlists'.tr(),
+                        icon: Icon(Symbols.queue_music),
+                      ),
                     ],
                   ),
                   actions: [
@@ -398,7 +405,9 @@ class LibraryScreen extends HookConsumerWidget {
           final tracks = snapshot.data!;
           final totalTracks = tracks.length;
           if (searchQuery.value.isEmpty) {
-            hintText = 'searchTracksWithCount'.tr(args: [totalTracks.toString()]);
+            hintText = 'searchTracksWithCount'.tr(
+              args: [totalTracks.toString()],
+            );
           } else {
             final query = searchQuery.value.toLowerCase();
             final filteredCount = tracks.where((track) {
@@ -421,7 +430,8 @@ class LibraryScreen extends HookConsumerWidget {
               }
               return false;
             }).length;
-            hintText = 'searchTracksFiltered'.tr()
+            hintText = 'searchTracksFiltered'
+                .tr()
                 .replaceAll('{}', filteredCount.toString())
                 .replaceAll('{}', totalTracks.toString());
           }
@@ -466,9 +476,7 @@ class LibraryScreen extends HookConsumerWidget {
             }
 
             if (filteredTracks.isEmpty && searchQuery.value.isNotEmpty) {
-              mainContent = Center(
-                child: Text('noTracksMatchSearch'.tr()),
-              );
+              mainContent = Center(child: Text('noTracksMatchSearch'.tr()));
             } else {
               mainContent = ListView.builder(
                 padding: EdgeInsets.only(
@@ -545,9 +553,7 @@ class LibraryScreen extends HookConsumerWidget {
                           .deleteTrack(track.id);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(
-                            'deletedTrack'.tr(args: [track.title]),
-                          ),
+                          content: Text('deletedTrack'.tr(args: [track.title])),
                         ),
                       );
                     },
@@ -725,9 +731,7 @@ class LibraryScreen extends HookConsumerWidget {
                     }
                     final playlists = snapshot.data!;
                     if (playlists.isEmpty) {
-                      return Text(
-                        'noPlaylistsAvailable'.tr(),
-                      );
+                      return Text('noPlaylistsAvailable'.tr());
                     }
 
                     return SingleChildScrollView(
@@ -822,7 +826,10 @@ class LibraryScreen extends HookConsumerWidget {
                 _buildDetailRow('title'.tr(), track.title),
                 _buildDetailRow('artist'.tr(), track.artist ?? 'Unknown'),
                 _buildDetailRow('album'.tr(), track.album ?? 'Unknown'),
-                _buildDetailRow('duration'.tr(), _formatDuration(track.duration)),
+                _buildDetailRow(
+                  'duration'.tr(),
+                  _formatDuration(track.duration),
+                ),
                 _buildDetailRow('fileSize'.tr(), fileSize),
                 _buildDetailRow('library'.tr(), libraryName),
                 _buildDetailRow('filePath'.tr(), track.path),
