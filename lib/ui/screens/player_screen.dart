@@ -1965,6 +1965,7 @@ class _PlayerControls extends HookWidget {
               Expanded(
                 child: StreamBuilder<double>(
                   stream: player.stream.volume,
+                  initialData: player.state.volume,
                   builder: (context, snapshot) {
                     final volume = snapshot.data ?? 100.0;
                     return Row(
