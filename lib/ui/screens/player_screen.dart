@@ -1339,12 +1339,18 @@ class _FanLyricsView extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final displayCenter = useState(0);
+    // Fractional viewport center, in line units. Keeping it continuous
+    // makes manual dragging glide smoothly instead of jumping per line.
+    final centerFraction = useState(0.0);
     final userScrolling = useState(false);
-    final dragAccum = useRef(0.0);
     final snapTimer = useRef<Timer?>(null);
 
     useEffect(() => () => snapTimer.value?.cancel(), const []);
+
+    void beginManualScroll() {
+      snapTimer.value?.cancel();
+      userScrolling.value = true;
+    }
 
     void scheduleSnap() {
       snapTimer.value?.cancel();
@@ -1354,12 +1360,12 @@ class _FanLyricsView extends HookConsumerWidget {
     }
 
     void step(int direction) {
-      userScrolling.value = true;
-      var next = displayCenter.value + direction;
-      if (next < 0) next = 0;
-      if (next >= lyrics.lines.length) next = lyrics.lines.length - 1;
-      if (next != displayCenter.value) {
-        displayCenter.value = next;
+      beginManualScroll();
+      var target = centerFraction.value.round() + direction;
+      if (target < 0) target = 0;
+      if (target >= lyrics.lines.length) target = lyrics.lines.length - 1;
+      if (target != centerFraction.value.round()) {
+        centerFraction.value = target.toDouble();
       }
       scheduleSnap();
     }
@@ -1385,15 +1391,14 @@ class _FanLyricsView extends HookConsumerWidget {
           }
         }
 
-        if (!userScrolling.value && displayCenter.value != currentIndex) {
+        if (!userScrolling.value &&
+            centerFraction.value.round() != currentIndex) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            displayCenter.value = currentIndex;
+            centerFraction.value = currentIndex.toDouble();
           });
         }
 
-        final centerIdx = userScrolling.value
-            ? displayCenter.value
-            : currentIndex;
+        final viewCenter = centerFraction.value;
 
         double progress = 0.0;
         final activeStart = lyrics.lines[currentIndex].timeMs ?? 0;
@@ -1406,9 +1411,12 @@ class _FanLyricsView extends HookConsumerWidget {
         }
 
         // Render one extra faded ring beyond the visible window so rows
-        // slide in/out smoothly while stepping.
-        final aboveCount = math.min(_half + 1, centerIdx);
-        final belowCount = math.min(_half + 1, total - 1 - centerIdx);
+        // slide in/out smoothly while scrolling.
+        final firstVisible = math.max(0, viewCenter.floor() - _half - 1);
+        final lastVisible = math.min(
+          total - 1,
+          viewCenter.ceil() + _half + 1,
+        );
 
         return LayoutBuilder(
           builder: (context, constraints) {
@@ -1429,18 +1437,20 @@ class _FanLyricsView extends HookConsumerWidget {
 
             Widget buildLine(int i) {
               final line = lyrics.lines[i];
-              final signedDist = (i - centerIdx).toDouble();
+              // Fractional distance from the viewport center keeps position,
+              // rotation and opacity continuous during manual scrolling.
+              final signedDist = i - viewCenter;
               final dist = signedDist.abs();
               final isActiveLine = i == currentIndex;
-              final t = dist / _half;
+              final t = (dist / _half).clamp(0.0, 1.4);
 
               double opacity;
-              if (i == centerIdx) {
-                opacity = 1.0;
-              } else if (dist > _half) {
+              if (dist > _half + 1) {
                 // Extra ring outside the visible window: fully transparent
                 // so entering/exiting rows fade instead of popping.
                 opacity = 0.0;
+              } else if (dist > _half) {
+                opacity = 0.25 * (_half + 1 - dist);
               } else {
                 opacity = math.max(0.25, 1.0 - t * 0.6);
               }
@@ -1540,24 +1550,33 @@ class _FanLyricsView extends HookConsumerWidget {
               const Positioned.fill(
                 child: ColoredBox(color: Colors.transparent),
               ),
-              for (int d = -aboveCount; d <= belowCount; d++)
-                buildLine(centerIdx + d),
+              for (int i = firstVisible; i <= lastVisible; i++)
+                KeyedSubtree(
+                  key: ValueKey('fan-line-$i'),
+                  child: buildLine(i),
+                ),
             ];
 
             return GestureDetector(
+              onVerticalDragStart: (_) => beginManualScroll(),
               onVerticalDragUpdate: (details) {
-                dragAccum.value += details.delta.dy;
-                while (dragAccum.value >= _itemExtent) {
-                  step(1);
-                  dragAccum.value -= _itemExtent;
+                var next =
+                    centerFraction.value - details.delta.dy / _itemExtent;
+                if (next < 0) next = 0;
+                if (next >= lyrics.lines.length) {
+                  next = lyrics.lines.length - 1.0;
                 }
-                while (dragAccum.value <= -_itemExtent) {
-                  step(-1);
-                  dragAccum.value += _itemExtent;
-                }
+                centerFraction.value = next;
               },
               onVerticalDragEnd: (_) {
-                dragAccum.value = 0;
+                // Snap to the nearest whole line, then resume auto-tracking
+                // after the usual idle delay.
+                var snapped = centerFraction.value.round();
+                if (snapped < 0) snapped = 0;
+                if (snapped >= lyrics.lines.length) {
+                  snapped = lyrics.lines.length - 1;
+                }
+                centerFraction.value = snapped.toDouble();
                 scheduleSnap();
               },
               child: Listener(
