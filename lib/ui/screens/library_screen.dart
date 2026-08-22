@@ -671,6 +671,14 @@ class LibraryScreen extends HookConsumerWidget {
                 },
               ),
               ListTile(
+                leading: const Icon(Symbols.image),
+                title: Text('importCover'.tr()),
+                onTap: () {
+                  Navigator.pop(context);
+                  _importCoverForTrack(context, ref, track);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Symbols.lyrics),
                 title: Text('importLyrics'.tr()),
                 onTap: () {
@@ -869,6 +877,35 @@ class LibraryScreen extends HookConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _importCoverForTrack(
+    BuildContext context,
+    WidgetRef ref,
+    Track track,
+  ) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    final bytes = result?.files.firstOrNull?.bytes;
+    if (bytes == null) return;
+
+    try {
+      await ref
+          .read(trackRepositoryProvider.notifier)
+          .updateTrackCover(track.id, bytes);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('coverUpdated'.tr(args: [track.title]))),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('errorUpdatingCover'.tr(args: [e.toString()]))),
+      );
+    }
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref, Track track) {

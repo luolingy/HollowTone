@@ -151,5 +151,16 @@
   "added": "added",
   "to":"to",
   "unknown":"Unknown",
-  "noPlaylistsAvailable":"No Playlists available"
+  "noPlaylistsAvailable":"No Playlists available",
+  "importCover": "Import cover",
+  "coverUpdated": "Cover updated for \"{}\"",
+  "errorUpdatingCover": "Error updating cover: {}",
+  "about": "About",
+  "version": "Version",
+  "contributors": "Contributors",
+  "iconDesign": "Icon design",
+  "originalAuthor": "Original author",
+  "unknownArtist": "Unknown Artist",
+  "openMainWindow": "Show main window",
+  "quit": "Quit"
 }

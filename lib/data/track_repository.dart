@@ -173,13 +173,12 @@ class TrackRepository extends _$TrackRepository {
     final db = ref.read(databaseProvider);
 
     final badTracks =
-        await (db.select(db.tracks)
-              ..where(
-                (t) =>
-                    t.title.equals('') |
-                    t.artist.equals('') |
-                    t.duration.isNull(),
-              ))
+        await (db.select(db.tracks)..where(
+              (t) =>
+                  t.title.equals('') |
+                  t.artist.equals('') |
+                  t.duration.isNull(),
+            ))
             .get();
 
     if (badTracks.isEmpty) return;
@@ -195,22 +194,15 @@ class TrackRepository extends _$TrackRepository {
             track.artist == null || track.artist!.trim().isEmpty;
         final needsAlbum = track.album == null || track.album!.trim().isEmpty;
 
-        await (db.update(
-          db.tracks,
-        )..where((t) => t.id.equals(track.id))).write(
+        await (db.update(db.tracks)..where((t) => t.id.equals(track.id))).write(
           TracksCompanion(
             title: needsTitle
                 ? Value(
-                    metadata.title ??
-                        MetadataService.fallbackTitle(track.path),
+                    metadata.title ?? MetadataService.fallbackTitle(track.path),
                   )
                 : const Value.absent(),
-            artist: needsArtist
-                ? Value(metadata.artist)
-                : const Value.absent(),
-            album: needsAlbum
-                ? Value(metadata.album)
-                : const Value.absent(),
+            artist: needsArtist ? Value(metadata.artist) : const Value.absent(),
+            album: needsAlbum ? Value(metadata.album) : const Value.absent(),
             duration: track.duration == null
                 ? Value(metadata.durationMs)
                 : const Value.absent(),
@@ -239,6 +231,53 @@ class TrackRepository extends _$TrackRepository {
         album: Value(album),
       ),
     );
+  }
+
+  /// Replaces the cover art of [trackId] with a user-provided image.
+  Future<void> updateTrackCover(int trackId, Uint8List imageBytes) async {
+    final db = ref.read(databaseProvider);
+    final track = await (db.select(
+      db.tracks,
+    )..where((t) => t.id.equals(trackId))).getSingleOrNull();
+    if (track == null) return;
+
+    final newPath = await _storeAlbumArt(imageBytes);
+    if (newPath == null) return;
+
+    await (db.update(db.tracks)..where((t) => t.id.equals(trackId))).write(
+      TracksCompanion(artUri: Value(newPath)),
+    );
+
+    // Remove the previous internal art file now that nothing references it.
+    final oldArt = track.artUri;
+    if (oldArt != null && oldArt != newPath && File(oldArt).existsSync()) {
+      try {
+        final appDir = await getApplicationDocumentsDirectory();
+        // Only delete files inside our internal art directory.
+        if (oldArt.startsWith(p.join(appDir.path, 'art'))) {
+          await File(oldArt).delete();
+        }
+      } catch (e) {
+        debugPrint('Error deleting old cover: $e');
+      }
+    }
+
+    // Refresh the playing track's metadata so the mini player / player screen
+    // pick up the new cover immediately.
+    final currentTrack = ref.read(currentTrackProvider);
+    if (currentTrack != null && currentTrack.id == trackId) {
+      final notifier = ref.read(currentTrackMetadataProvider.notifier);
+      final metadata = notifier.state;
+      notifier.setMetadata(
+        TrackMetadata(
+          title: metadata?.title ?? currentTrack.title,
+          artist: metadata?.artist ?? currentTrack.artist,
+          album: metadata?.album ?? currentTrack.album,
+          artBytes: imageBytes,
+          durationMs: metadata?.durationMs,
+        ),
+      );
+    }
   }
 
   Future<void> deleteTrack(int trackId) async {

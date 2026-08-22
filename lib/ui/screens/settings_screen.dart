@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:groovybox/data/track_repository.dart';
 
-
 import 'package:groovybox/providers/settings_provider.dart';
 import 'package:groovybox/providers/watch_folder_provider.dart';
 import 'package:groovybox/providers/remote_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:styled_widget/styled_widget.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class SettingsScreen extends HookConsumerWidget {
   const SettingsScreen({super.key});
@@ -49,9 +50,7 @@ class SettingsScreen extends HookConsumerWidget {
                         ).padding(horizontal: 16, top: 16),
                         SwitchListTile(
                           title: Text('autoScanMusicLibraries'.tr()),
-                          subtitle: Text(
-                            'autoScanDescription'.tr(),
-                          ),
+                          subtitle: Text('autoScanDescription'.tr()),
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
@@ -62,9 +61,7 @@ class SettingsScreen extends HookConsumerWidget {
                         ),
                         SwitchListTile(
                           title: Text('watchForChanges'.tr()),
-                          subtitle: Text(
-                            'watchForChangesDescription'.tr(),
-                          ),
+                          subtitle: Text('watchForChangesDescription'.tr()),
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
@@ -331,13 +328,14 @@ class SettingsScreen extends HookConsumerWidget {
                         ).padding(horizontal: 16, top: 16),
                         Text(
                           'playerSettingsDescription'.tr(),
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
                         ).padding(horizontal: 16, bottom: 8),
                         ListTile(
                           title: Text('defaultPlayerScreen'.tr()),
-                          subtitle: Text(
-                            'defaultPlayerScreenDescription'.tr(),
-                          ),
+                          subtitle: Text('defaultPlayerScreenDescription'.tr()),
                           trailing: DropdownButtonHideUnderline(
                             child: DropdownButton<DefaultPlayerScreen>(
                               value: settings.defaultPlayerScreen,
@@ -361,9 +359,7 @@ class SettingsScreen extends HookConsumerWidget {
                         ),
                         ListTile(
                           title: Text('lyricsMode'.tr()),
-                          subtitle: Text(
-                            'lyricsModeDescription'.tr(),
-                          ),
+                          subtitle: Text('lyricsModeDescription'.tr()),
                           trailing: DropdownButtonHideUnderline(
                             child: DropdownButton<LyricsMode>(
                               value: settings.lyricsMode,
@@ -385,9 +381,7 @@ class SettingsScreen extends HookConsumerWidget {
                         ),
                         SwitchListTile(
                           title: Text('continuePlaying'.tr()),
-                          subtitle: Text(
-                            'continuePlayingDescription'.tr(),
-                          ),
+                          subtitle: Text('continuePlayingDescription'.tr()),
                           shape: const RoundedRectangleBorder(
                             borderRadius: BorderRadius.all(Radius.circular(8)),
                           ),
@@ -418,19 +412,22 @@ class SettingsScreen extends HookConsumerWidget {
                         ).padding(horizontal: 16, top: 16),
                         Text(
                           'appSettingsDescription'.tr(),
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
                         ).padding(horizontal: 16, bottom: 8),
                         ListTile(
                           title: Text('language'.tr()),
-                          subtitle: Text(
-                            'languageDescription'.tr(),
-                          ),
+                          subtitle: Text('languageDescription'.tr()),
                           trailing: DropdownButtonHideUnderline(
                             child: DropdownButton<Locale>(
                               value: context.locale,
                               onChanged: (Locale? value) {
                                 if (value != null) {
-                                  EasyLocalization.of(context)!.setLocale(value);
+                                  EasyLocalization.of(
+                                    context,
+                                  )!.setLocale(value);
                                 } else {
                                   EasyLocalization.of(context)!.resetLocale();
                                 }
@@ -468,26 +465,30 @@ class SettingsScreen extends HookConsumerWidget {
                         ).padding(horizontal: 16, top: 16),
                         Text(
                           'databaseManagementDescription'.tr(),
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 14,
+                          ),
                         ).padding(horizontal: 16, bottom: 8),
                         ListTile(
                           title: Text('resetTrackDatabase'.tr()),
-                          subtitle: Text(
-                            'resetTrackDatabaseDescription'.tr(),
-                          ),
+                          subtitle: Text('resetTrackDatabaseDescription'.tr()),
                           trailing: ElevatedButton(
                             onPressed: () => _resetTrackDatabase(context, ref),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red,
                               foregroundColor: Colors.white,
                             ),
-            child: Text('reset'.tr()),
+                            child: Text('reset'.tr()),
                           ),
                         ),
                         const SizedBox(height: 8),
                       ],
                     ),
                   ),
+                  // About Section
+                  _buildAboutCard(context),
+
                   // Gap for mini player
                   const Gap(80),
                 ],
@@ -500,6 +501,98 @@ class SettingsScreen extends HookConsumerWidget {
             Center(child: Text('Error loading settings: $error')),
       ),
     );
+  }
+
+  Widget _buildAboutCard(BuildContext context) {
+    final linkStyle = TextStyle(
+      color: Theme.of(context).colorScheme.primary,
+      decoration: TextDecoration.underline,
+    );
+
+    Widget contributor(String name, String url, {String? roleKey}) {
+      return ListTile(
+        dense: true,
+        leading: const Icon(Symbols.person, size: 20),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: InkWell(
+                onTap: () => _openLink(url),
+                child: Text(
+                  name,
+                  style: linkStyle,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            if (roleKey != null) ...[
+              const Gap(8),
+              Text(
+                '(${'iconDesign'.tr()})',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'about'.tr(),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ).padding(horizontal: 16, top: 16),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final info = snapshot.data;
+              return ListTile(
+                leading: const Icon(Symbols.info),
+                title: Text('version'.tr()),
+                subtitle: Text(
+                  info == null ? '…' : '${info.version} (${info.buildNumber})',
+                ),
+              );
+            },
+          ),
+          Text(
+            'contributors'.tr(),
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          ).padding(horizontal: 16),
+          contributor('luolingy', 'https://github.com/luolingy'),
+          contributor('ZhiH', 'https://github.com/ZhiH2333'),
+          contributor(
+            '符跃 万界',
+            'https://qm.qq.com/q/vMovFQlrj2',
+            roleKey: 'iconDesign',
+          ),
+          const Divider(height: 16, indent: 16, endIndent: 16),
+          Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text('${'originalAuthor'.tr()}：'),
+              InkWell(
+                onTap: () => _openLink('https://github.com/littlesheep2code'),
+                child: Text('littlesheep2code', style: linkStyle),
+              ),
+            ],
+          ).padding(horizontal: 16, bottom: 16),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openLink(String url) async {
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (e) {
+      debugPrint('Could not open $url: $e');
+    }
   }
 
   void _addMusicLibrary(BuildContext context, WidgetRef ref) {
@@ -515,7 +608,11 @@ class SettingsScreen extends HookConsumerWidget {
           }
         } catch (e) {
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('errorAddingLibrary'.tr(args: [e.toString()]))));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('errorAddingLibrary'.tr(args: [e.toString()])),
+              ),
+            );
           }
         }
       }
@@ -533,9 +630,11 @@ class SettingsScreen extends HookConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('errorScanningLibraries'.tr(args: [e.toString()]))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('errorScanningLibraries'.tr(args: [e.toString()])),
+          ),
+        );
       }
     }
   }
@@ -552,9 +651,7 @@ class SettingsScreen extends HookConsumerWidget {
           if (activeProviders.isEmpty) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('noActiveRemoteProviders'.tr()),
-                ),
+                SnackBar(content: Text('noActiveRemoteProviders'.tr())),
               );
             }
             return;
@@ -572,7 +669,9 @@ class SettingsScreen extends HookConsumerWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text(
-                  'indexedRemoteProviders'.tr(args: [activeProviders.length.toString()]),
+                  'indexedRemoteProviders'.tr(
+                    args: [activeProviders.length.toString()],
+                  ),
                 ),
               ),
             );
@@ -656,14 +755,20 @@ class SettingsScreen extends HookConsumerWidget {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('addedRemoteProvider'.tr(args: [serverUrl])),
+                      content: Text(
+                        'addedRemoteProvider'.tr(args: [serverUrl]),
+                      ),
                     ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('errorAddingProvider'.tr(args: [e.toString()]))),
+                    SnackBar(
+                      content: Text(
+                        'errorAddingProvider'.tr(args: [e.toString()]),
+                      ),
+                    ),
                   );
                 }
               }
@@ -680,9 +785,7 @@ class SettingsScreen extends HookConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('resetTrackDatabase'.tr()),
-        content: Text(
-          'confirmResetTrackDatabase'.tr(),
-        ),
+        content: Text('confirmResetTrackDatabase'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
@@ -698,15 +801,17 @@ class SettingsScreen extends HookConsumerWidget {
 
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('trackDatabaseReset'.tr()),
-                    ),
+                    SnackBar(content: Text('trackDatabaseReset'.tr())),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('errorResettingDatabase'.tr(args: [e.toString()]))),
+                    SnackBar(
+                      content: Text(
+                        'errorResettingDatabase'.tr(args: [e.toString()]),
+                      ),
+                    ),
                   );
                 }
               }

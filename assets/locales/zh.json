@@ -152,5 +152,16 @@
   "thisWillRemoveThemFromYourDevice":"这将从您的设备上删除。",
   "added": "已添加",
   "to": "至",
-  "unknown": "未知"
+  "unknown": "未知",
+  "importCover": "导入封面",
+  "coverUpdated": "已更新\"{}\"的封面",
+  "errorUpdatingCover": "更新封面时出错：{}",
+  "about": "关于",
+  "version": "版本",
+  "contributors": "贡献者",
+  "iconDesign": "图标设计",
+  "originalAuthor": "原作者",
+  "unknownArtist": "未知艺术家",
+  "openMainWindow": "显示主窗口",
+  "quit": "退出"
 }
