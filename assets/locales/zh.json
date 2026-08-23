@@ -174,5 +174,10 @@
   "playModeSequential": "顺序播放",
   "playModeShuffle": "随机播放",
   "playModeLoopAll": "列表循环",
-  "playModeLoopOne": "单曲循环"
+  "playModeLoopOne": "单曲循环",
+  "themeMode": "主题模式",
+  "themeModeDescription": "选择亮色、暗色或跟随系统",
+  "themeSystem": "跟随系统",
+  "themeLight": "亮色",
+  "themeDark": "暗色"
 }

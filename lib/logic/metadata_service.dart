@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
 import 'package:groovybox/providers/db_provider.dart';
@@ -42,8 +43,11 @@ class MetadataService {
     }
 
     try {
-      // Fetching images slows reading down a bit but is required for cover art.
-      final metadata = amr.readMetadata(file, getImage: true);
+      // The pure-Dart parser is CPU-bound; run it on a background isolate so
+      // large imports / library scans never block the UI thread.
+      final metadata = await Isolate.run(() {
+        return amr.readMetadata(File(path), getImage: true);
+      });
       String? artist = MetadataService.clean(metadata.artist);
       if (artist == null && metadata.performers.isNotEmpty) {
         artist = MetadataService.clean(metadata.performers.join(', '));

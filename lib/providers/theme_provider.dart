@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import 'package:groovybox/providers/settings_provider.dart';
+
 part 'theme_provider.g.dart';
 
 // Default seed color
@@ -56,31 +58,35 @@ ThemeData createDarkTheme(Color seedColor) => ThemeData(
 class ThemeNotifier extends _$ThemeNotifier {
   @override
   ThemeMode build() {
-    return ThemeMode.system; // Default to system theme
+    // Mirrors the persisted setting so the choice survives restarts.
+    return ref.watch(settingsProvider).maybeWhen(
+      data: (settings) => settings.themeMode,
+      orElse: () => ThemeMode.system,
+    );
   }
 
-  void setThemeMode(ThemeMode themeMode) {
-    state = themeMode;
+  Future<void> setThemeMode(ThemeMode themeMode) async {
+    await ref.read(settingsProvider.notifier).setThemeMode(themeMode);
   }
 
   void toggleTheme() {
     switch (state) {
       case ThemeMode.light:
-        state = ThemeMode.dark;
+        setThemeMode(ThemeMode.dark);
         break;
       case ThemeMode.dark:
-        state = ThemeMode.light;
+        setThemeMode(ThemeMode.light);
         break;
       case ThemeMode.system:
         // If system, default to light
-        state = ThemeMode.light;
+        setThemeMode(ThemeMode.light);
         break;
     }
   }
 
-  void setLightTheme() => state = ThemeMode.light;
-  void setDarkTheme() => state = ThemeMode.dark;
-  void setSystemTheme() => state = ThemeMode.system;
+  Future<void> setLightTheme() => setThemeMode(ThemeMode.light);
+  Future<void> setDarkTheme() => setThemeMode(ThemeMode.dark);
+  Future<void> setSystemTheme() => setThemeMode(ThemeMode.system);
 }
 
 @Riverpod(keepAlive: true)

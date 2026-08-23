@@ -241,40 +241,54 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
     final mainText = hasLyric
         ? _currentLine
         : (_trackTitle.isEmpty ? 'GroovyBox' : _trackTitle);
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Text(
-            mainText,
-            maxLines: 1,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: hasLyric ? const Color(0xFF4DD0E1) : _secondaryText,
-              shadows: const [
-                Shadow(blurRadius: 6, color: Colors.black, offset: Offset(0, 1)),
-              ],
+    // Scale the whole block down when the bar is resized smaller so it can
+    // never overflow the window.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: _barWidth - 64),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              mainText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: hasLyric ? const Color(0xFF4DD0E1) : _secondaryText,
+                shadows: const [
+                  Shadow(
+                    blurRadius: 6,
+                    color: Colors.black,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
             ),
-          ),
+            if (_nextLine.trim().isNotEmpty)
+              Text(
+                _nextLine,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: _secondaryText,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 4,
+                      color: Colors.black,
+                      offset: Offset(0, 1),
+                    ),
+                  ],
+                ),
+              ),
+          ],
         ),
-        if (_nextLine.trim().isNotEmpty)
-          Text(
-            _nextLine,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 13,
-              color: _secondaryText,
-              shadows: [
-                Shadow(blurRadius: 4, color: Colors.black, offset: Offset(0, 1)),
-              ],
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

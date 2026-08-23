@@ -40,6 +40,11 @@ class DesktopLyricsManager {
   bool _enabled = false;
   bool get isEnabled => _enabled;
 
+  // Parsed-lyrics cache: the position stream ticks constantly, so the LRC
+  // JSON must be decoded only once per track instead of on every tick.
+  String? _parsedLyricsKey;
+  List<LyricsLine>? _parsedLines;
+
   /// Whether this platform supports the overlay at all.
   static bool get isSupported => !kIsWeb && Platform.isWindows;
 
@@ -231,24 +236,34 @@ class DesktopLyricsManager {
     String current = '';
     String next = '';
     if (track?.lyrics != null) {
-      try {
-        final data = LyricsData.fromJsonString(track!.lyrics!);
-        if (data.type == 'timed') {
-          int index = -1;
-          for (int i = 0; i < data.lines.length; i++) {
-            if ((data.lines[i].timeMs ?? 0) <= positionMs) {
-              index = i;
-            } else {
-              break;
-            }
+      final key = '${track!.id}:${track.lyrics!.length}';
+      if (key != _parsedLyricsKey) {
+        _parsedLines = null;
+        try {
+          final data = LyricsData.fromJsonString(track.lyrics!);
+          if (data.type == 'timed') {
+            _parsedLines = data.lines;
           }
-          if (index >= 0) current = data.lines[index].text;
-          if (index >= 0 && index + 1 < data.lines.length) {
-            next = data.lines[index + 1].text;
+        } catch (_) {
+          // Malformed lyrics simply render as "no lyric".
+        }
+        _parsedLyricsKey = key;
+      }
+
+      final lines = _parsedLines;
+      if (lines != null && lines.isNotEmpty) {
+        int index = -1;
+        for (int i = 0; i < lines.length; i++) {
+          if ((lines[i].timeMs ?? 0) <= positionMs) {
+            index = i;
+          } else {
+            break;
           }
         }
-      } catch (_) {
-        // Malformed lyrics simply render as "no lyric".
+        if (index >= 0) current = lines[index].text;
+        if (index >= 0 && index + 1 < lines.length) {
+          next = lines[index + 1].text;
+        }
       }
     }
 

@@ -1822,13 +1822,19 @@ class _TimedLyricsView extends HookConsumerWidget {
         if (currentIndex != previousIndex.value) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             previousIndex.value = currentIndex;
-            listController.animateToItem(
-              index: currentIndex,
-              scrollController: scrollController,
-              alignment: 0.5,
-              duration: (_) => const Duration(milliseconds: 300),
-              curve: (_) => Curves.easeOutCubic,
-            );
+            try {
+              listController.animateToItem(
+                index: currentIndex,
+                scrollController: scrollController,
+                alignment: 0.5,
+                duration: (_) => const Duration(milliseconds: 300),
+                curve: (_) => Curves.easeOutCubic,
+              );
+            } on AssertionError catch (e) {
+              // The list can be disposed/reattached between scheduling the
+              // frame callback and this call (e.g. when leaving the screen).
+              debugPrint('Lyrics auto-scroll skipped: $e');
+            }
           });
         }
 

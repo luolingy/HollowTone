@@ -173,5 +173,10 @@
   "playModeSequential": "Sequential",
   "playModeShuffle": "Shuffle",
   "playModeLoopAll": "Repeat all",
-  "playModeLoopOne": "Repeat one"
+  "playModeLoopOne": "Repeat one",
+  "themeMode": "Theme mode",
+  "themeModeDescription": "Choose light, dark, or follow the system",
+  "themeSystem": "Follow system",
+  "themeLight": "Light",
+  "themeDark": "Dark"
 }

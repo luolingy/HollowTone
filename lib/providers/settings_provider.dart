@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -39,6 +40,7 @@ class SettingsState {
   final DefaultPlayerScreen defaultPlayerScreen;
   final LyricsMode lyricsMode;
   final bool continuePlays;
+  final ThemeMode themeMode;
   final Set<String> supportedFormats;
   final Size? windowSize;
 
@@ -49,6 +51,7 @@ class SettingsState {
     this.defaultPlayerScreen = DefaultPlayerScreen.cover,
     this.lyricsMode = LyricsMode.auto,
     this.continuePlays = false,
+    this.themeMode = ThemeMode.system,
     this.supportedFormats = const {
       '.mp3',
       '.flac',
@@ -69,6 +72,7 @@ class SettingsState {
     DefaultPlayerScreen? defaultPlayerScreen,
     LyricsMode? lyricsMode,
     bool? continuePlays,
+    ThemeMode? themeMode,
     Set<String>? supportedFormats,
     Size? windowSize,
   }) {
@@ -79,6 +83,7 @@ class SettingsState {
       defaultPlayerScreen: defaultPlayerScreen ?? this.defaultPlayerScreen,
       lyricsMode: lyricsMode ?? this.lyricsMode,
       continuePlays: continuePlays ?? this.continuePlays,
+      themeMode: themeMode ?? this.themeMode,
       supportedFormats: supportedFormats ?? this.supportedFormats,
       windowSize: windowSize ?? this.windowSize,
     );
@@ -93,6 +98,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   static const String _defaultPlayerScreenKey = 'default_player_screen';
   static const String _lyricsModeKey = 'lyrics_mode';
   static const String _continuePlaysKey = 'continue_plays';
+  static const String _themeModeKey = 'theme_mode';
   static const String _windowWidthKey = 'window_width';
   static const String _windowHeightKey = 'window_height';
 
@@ -116,6 +122,14 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     final continuePlays = prefs.getBool(_continuePlaysKey) ?? false;
 
+    final themeModeName = prefs.getString(_themeModeKey);
+    final themeMode = themeModeName == null
+        ? ThemeMode.system
+        : ThemeMode.values.firstWhere(
+            (m) => m.name == themeModeName,
+            orElse: () => ThemeMode.system,
+          );
+
     // Load window size
     Size? windowSize;
     final windowWidth = prefs.getDouble(_windowWidthKey);
@@ -131,6 +145,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       defaultPlayerScreen: defaultPlayerScreen,
       lyricsMode: lyricsMode,
       continuePlays: continuePlays,
+      themeMode: themeMode,
       windowSize: windowSize,
     );
   }
@@ -188,6 +203,15 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     if (state.hasValue) {
       state = AsyncValue.data(state.value!.copyWith(continuePlays: enabled));
+    }
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, mode.name);
+
+    if (state.hasValue) {
+      state = AsyncValue.data(state.value!.copyWith(themeMode: mode));
     }
   }
 

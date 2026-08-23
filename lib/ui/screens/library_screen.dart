@@ -21,6 +21,28 @@ import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
 import 'package:styled_widget/styled_widget.dart';
 
+/// Cache of lower-cased lyric text per track, so typing in the search box
+/// does not re-parse every track's lyrics JSON on each keystroke.
+final Map<String, String> _lyricsSearchCache = <String, String>{};
+
+String? lyricsSearchText(Track track) {
+  final lyrics = track.lyrics;
+  if (lyrics == null) return null;
+  final key = '${track.id}:${lyrics.length}';
+  final cached = _lyricsSearchCache[key];
+  if (cached != null) return cached;
+  try {
+    final data = LyricsData.fromJsonString(lyrics);
+    // Keep the cache bounded; a simple reset is fine for this use case.
+    if (_lyricsSearchCache.length > 800) _lyricsSearchCache.clear();
+    final blob = data.lines.map((line) => line.text).join('\n').toLowerCase();
+    _lyricsSearchCache[key] = blob;
+    return blob;
+  } catch (_) {
+    return null;
+  }
+}
+
 class LibraryScreen extends HookConsumerWidget {
   const LibraryScreen({super.key});
 
@@ -488,16 +510,8 @@ class LibraryScreen extends HookConsumerWidget {
               if (track.album?.toLowerCase().contains(query) ?? false) {
                 return true;
               }
-              if (track.lyrics != null) {
-                try {
-                  final lyricsData = LyricsData.fromJsonString(track.lyrics!);
-                  for (final line in lyricsData.lines) {
-                    if (line.text.toLowerCase().contains(query)) return true;
-                  }
-                } catch (e) {
-                  // Ignore parsing errors
-                }
-              }
+              final blob = lyricsSearchText(track);
+              if (blob != null && blob.contains(query)) return true;
               return false;
             }).length;
             hintText = 'searchTracksFiltered'
@@ -531,16 +545,8 @@ class LibraryScreen extends HookConsumerWidget {
                 if (track.album?.toLowerCase().contains(query) ?? false) {
                   return true;
                 }
-                if (track.lyrics != null) {
-                  try {
-                    final lyricsData = LyricsData.fromJsonString(track.lyrics!);
-                    for (final line in lyricsData.lines) {
-                      if (line.text.toLowerCase().contains(query)) return true;
-                    }
-                  } catch (e) {
-                    // Ignore parsing errors
-                  }
-                }
+                final blob = lyricsSearchText(track);
+                if (blob != null && blob.contains(query)) return true;
                 return false;
               }).toList();
             }

@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:groovybox/data/track_repository.dart';
 
 import 'package:groovybox/providers/settings_provider.dart';
+import 'package:groovybox/providers/theme_provider.dart';
 import 'package:groovybox/providers/watch_folder_provider.dart';
 import 'package:groovybox/providers/remote_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -376,6 +377,36 @@ class SettingsScreen extends HookConsumerWidget {
                                   child: Text(mode.displayName),
                                 );
                               }).toList(),
+                            ),
+                          ),
+                        ),
+                        ListTile(
+                          title: Text('themeMode'.tr()),
+                          subtitle: Text('themeModeDescription'.tr()),
+                          trailing: DropdownButtonHideUnderline(
+                            child: DropdownButton<ThemeMode>(
+                              value: settings.themeMode,
+                              onChanged: (ThemeMode? value) {
+                                if (value != null) {
+                                  ref.read(themeProvider.notifier).setThemeMode(
+                                    value,
+                                  );
+                                }
+                              },
+                              items: [
+                                DropdownMenuItem(
+                                  value: ThemeMode.system,
+                                  child: Text('themeSystem'.tr()),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.light,
+                                  child: Text('themeLight'.tr()),
+                                ),
+                                DropdownMenuItem(
+                                  value: ThemeMode.dark,
+                                  child: Text('themeDark'.tr()),
+                                ),
+                              ],
                             ),
                           ),
                         ),
