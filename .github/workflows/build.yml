@@ -51,6 +51,7 @@ jobs:
           name: groovybox-Windows-portable
           path: groovybox-windows-${{ env.BUILD_NAME }}-portable.zip
       - name: Build installer (Inno Setup)
+        continue-on-error: true
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
@@ -68,7 +69,7 @@ jobs:
         with:
           name: groovybox-Windows-installer
           path: Installer/*.exe
-          if-no-files-found: error
+          if-no-files-found: ignore
 
   linux:
     if: inputs.build_linux

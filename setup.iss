@@ -9,10 +9,10 @@
 AppName=GroovyBox
 AppVersion={#AppVersion}
 AppPublisher=Solsynth
-AppPublisherURL=https://solsynth.dev
-AppSupportURL=https://kb.solsynth.dev/zh/groovy-box
-AppUpdatesURL=https://github.com/Solsynth/GroovyBox/releases
-AppCopyright=Copyright © 2025 Solsynth
+AppPublisherURL=https://luolingy.qzz.io
+AppSupportURL=https://www.luolingy.qzz.io/project-detail.html?slug=%E8%81%86%E9%98%81
+AppUpdatesURL=https://github.com/luolingy/GroovyBox/releases
+AppCopyright=Copyright © 2026 luoling/Solsynth
 VersionInfoVersion={#FullVersion}
 UninstallDisplayName=GroovyBox
 UninstallDisplayIcon={app}\groovybox.exe
@@ -22,7 +22,7 @@ UsePreviousAppDir=no
 
 OutputDir=.\Installer
 OutputBaseFilename=windows-x86_64-setup
-SetupIconFile=.\assets\images\icon-rounded.ico
+SetupIconFile=.\assets\images\icon.ico
 
 Compression=lzma2/ultra64
 SolidCompression=yes
