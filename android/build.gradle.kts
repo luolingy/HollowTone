@@ -19,6 +19,31 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+subprojects {
+    afterEvaluate {
+        if (!plugins.hasPlugin("com.android.library")) return@afterEvaluate
+        val android = extensions.getByName("android")
+        val getNamespace =
+            android.javaClass.methods.firstOrNull { it.name == "getNamespace" }
+                ?: return@afterEvaluate
+        if (getNamespace.invoke(android) != null) return@afterEvaluate
+        val manifest = file("src/main/AndroidManifest.xml")
+        if (!manifest.isFile) return@afterEvaluate
+        val document =
+            javax.xml.parsers.DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder()
+                .parse(manifest)
+        val packageName = document.documentElement.getAttribute("package")
+        if (packageName.isBlank()) return@afterEvaluate
+        android.javaClass.methods
+            .firstOrNull {
+                it.name == "setNamespace" &&
+                    it.parameterTypes.contentEquals(arrayOf(String::class.java))
+            }
+            ?.invoke(android, packageName)
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
