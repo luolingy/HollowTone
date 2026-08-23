@@ -53,6 +53,15 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# Use the vendored sqlite3 amalgamation (windows/sqlite/) instead of letting
+# sqlite3_flutter_libs download it from sqlite.org at configure time, which
+# fails on machines without direct access to that host. This must be set
+# before the plugin's FetchContent_Declare(sqlite3) is processed.
+set(FETCHCONTENT_SOURCE_DIR_SQLITE3
+  "${CMAKE_CURRENT_LIST_DIR}/sqlite/sqlite-autoconf-3520000"
+  CACHE PATH "Local sqlite3 sources for FetchContent" FORCE
+)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
