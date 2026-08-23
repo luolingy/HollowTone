@@ -351,6 +351,14 @@ class AudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await updateQueue(mediaItems);
   }
 
+  /// Appends [tracks] to the current queue without interrupting playback.
+  Future<void> addTracksToQueue(List<db.Track> tracks) async {
+    final mediaItems = await Future.wait(tracks.map(_trackToMediaItem));
+    _queue.addAll(mediaItems);
+    queue.add(_queue);
+    await _updatePlaylist();
+  }
+
   Future<MediaItem> _trackToMediaItem(db.Track track) async {
     Uri? artUri;
 

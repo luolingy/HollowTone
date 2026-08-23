@@ -45,6 +45,111 @@ class LibraryScreen extends HookConsumerWidget {
     ...lyricsExtensions,
   ];
 
+  /// Shared action row for selection mode: select all, invert, add to queue,
+  /// and an overflow menu with add-to-playlist / delete.
+  List<Widget> _buildSelectionActions(
+    BuildContext context,
+    WidgetRef ref,
+    ValueNotifier<Set<int>> selectedTrackIds,
+    ValueNotifier<List<int>> availableTrackIds,
+    VoidCallback clearSelection,
+  ) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+    final availableSet = availableTrackIds.value.toSet();
+    final allSelected =
+        availableSet.isNotEmpty && selectedTrackIds.value.containsAll(availableSet);
+
+    Future<void> addToQueue() async {
+      final ids = selectedTrackIds.value.intersection(
+        availableTrackIds.value.toSet(),
+      );
+      if (ids.isEmpty) return;
+      final trackRepo = ref.read(trackRepositoryProvider.notifier);
+      final all = await trackRepo.getAllTracks();
+      final tracks = all.where((t) => ids.contains(t.id)).toList();
+      await ref.read(audioHandlerProvider).addTracksToQueue(tracks);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${'added'.tr()} ${tracks.length} ${'tracks'.tr()} ${'to'.tr()} ${'queue'.tr()}',
+          ),
+        ),
+      );
+    }
+
+    return [
+      IconButton(
+        icon: Icon(allSelected ? Symbols.clear : Symbols.done_all),
+        tooltip: allSelected ? 'clear'.tr() : 'selectAll'.tr(),
+        color: onPrimary,
+        onPressed: () {
+          selectedTrackIds.value = allSelected ? <int>{} : availableSet;
+        },
+      ),
+      IconButton(
+        icon: const Icon(Symbols.difference),
+        tooltip: 'invertSelection'.tr(),
+        color: onPrimary,
+        onPressed: () {
+          final current = selectedTrackIds.value;
+          selectedTrackIds.value = availableTrackIds.value
+              .where((id) => !current.contains(id))
+              .toSet();
+        },
+      ),
+      IconButton(
+        icon: const Icon(Symbols.queue_music),
+        tooltip: 'addToQueue'.tr(),
+        color: onPrimary,
+        onPressed: addToQueue,
+      ),
+      PopupMenuButton<String>(
+        icon: Icon(Symbols.more_vert, color: onPrimary),
+        onSelected: (value) {
+          if (value == 'playlist') {
+            _batchAddToPlaylist(
+              context,
+              ref,
+              selectedTrackIds.value.toList(),
+              clearSelection,
+            );
+          } else if (value == 'delete') {
+            _batchDelete(
+              context,
+              ref,
+              selectedTrackIds.value.toList(),
+              clearSelection,
+            );
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: 'playlist',
+            child: Row(
+              spacing: 12,
+              children: [
+                const Icon(Symbols.playlist_add),
+                Text('addToPlaylist'.tr()),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              spacing: 12,
+              children: [
+                const Icon(Symbols.delete, color: Colors.red),
+                Text('delete'.tr(), style: const TextStyle(color: Colors.red)),
+              ],
+            ),
+          ),
+        ],
+      ),
+      const Gap(8),
+    ];
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // We can define a stream provider locally or in repository file.
@@ -55,6 +160,9 @@ class LibraryScreen extends HookConsumerWidget {
     final repo = ref.watch(trackRepositoryProvider.notifier);
     final selectedTrackIds = useState<Set<int>>({});
     final searchQuery = useState<String>('');
+    // Track ids currently visible in the tracks tab (after search filtering);
+    // feeds select-all / invert-selection actions.
+    final availableTrackIds = useState<List<int>>([]);
     final isSelectionMode = selectedTrackIds.value.isNotEmpty;
     final isLargeScreen = MediaQuery.of(context).size.width > 600;
     final isExtraLargeScreen = MediaQuery.of(context).size.width > 800;
@@ -89,35 +197,13 @@ class LibraryScreen extends HookConsumerWidget {
                   ),
                 ).textColor(Theme.of(context).colorScheme.onPrimary),
                 backgroundColor: Theme.of(context).colorScheme.primary,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Symbols.playlist_add),
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    tooltip: 'addToPlaylist'.tr(),
-                    onPressed: () {
-                      _batchAddToPlaylist(
-                        context,
-                        ref,
-                        selectedTrackIds.value.toList(),
-                        clearSelection,
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Symbols.delete),
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    tooltip: 'delete'.tr(),
-                    onPressed: () {
-                      _batchDelete(
-                        context,
-                        ref,
-                        selectedTrackIds.value.toList(),
-                        clearSelection,
-                      );
-                    },
-                  ),
-                  const Gap(8),
-                ],
+                actions: _buildSelectionActions(
+                  context,
+                  ref,
+                  selectedTrackIds,
+                  availableTrackIds,
+                  clearSelection,
+                ),
               )
             : (isDesktopPlatform()
                   ? null
@@ -132,7 +218,10 @@ class LibraryScreen extends HookConsumerWidget {
                               children: [
                                 const Gap(4),
                                 Image.asset(
-                                  'assets/images/icon.jpg',
+                                  Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? 'assets/images/icon-dark.png'
+                                      : 'assets/images/icon.png',
                                   width: 32,
                                   height: 32,
                                 ).clipRRect(all: 8).padding(vertical: 16),
@@ -238,6 +327,7 @@ class LibraryScreen extends HookConsumerWidget {
                       ref,
                       repo,
                       selectedTrackIds,
+                      availableTrackIds,
                       searchQuery,
                       toggleSelection,
                       isSelectionMode,
@@ -266,35 +356,13 @@ class LibraryScreen extends HookConsumerWidget {
                     ),
                   ).textColor(Theme.of(context).colorScheme.onPrimary),
                   backgroundColor: Theme.of(context).colorScheme.primary,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Symbols.playlist_add),
-                      tooltip: 'addToPlaylist'.tr(),
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () {
-                        _batchAddToPlaylist(
-                          context,
-                          ref,
-                          selectedTrackIds.value.toList(),
-                          clearSelection,
-                        );
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Symbols.delete),
-                      tooltip: 'delete'.tr(),
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () {
-                        _batchDelete(
-                          context,
-                          ref,
-                          selectedTrackIds.value.toList(),
-                          clearSelection,
-                        );
-                      },
-                    ),
-                    const Gap(8),
-                  ],
+                  actions: _buildSelectionActions(
+                    context,
+                    ref,
+                    selectedTrackIds,
+                    availableTrackIds,
+                    clearSelection,
+                  ),
                 )
               : AppBar(
                   centerTitle: true,
@@ -373,6 +441,7 @@ class LibraryScreen extends HookConsumerWidget {
                 ref,
                 repo,
                 selectedTrackIds,
+                availableTrackIds,
                 searchQuery,
                 toggleSelection,
                 isSelectionMode,
@@ -390,6 +459,7 @@ class LibraryScreen extends HookConsumerWidget {
     WidgetRef ref,
     dynamic repo,
     ValueNotifier<Set<int>> selectedTrackIds,
+    ValueNotifier<List<int>> availableTrackIds,
     ValueNotifier<String> searchQuery,
     void Function(int) toggleSelection,
     bool isSelectionMode,
@@ -478,6 +548,11 @@ class LibraryScreen extends HookConsumerWidget {
             if (filteredTracks.isEmpty && searchQuery.value.isNotEmpty) {
               mainContent = Center(child: Text('noTracksMatchSearch'.tr()));
             } else {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                availableTrackIds.value = filteredTracks
+                    .map((t) => t.id)
+                    .toList(growable: false);
+              });
               mainContent = ListView.builder(
                 padding: EdgeInsets.only(
                   bottom: 72 + MediaQuery.paddingOf(context).bottom,
@@ -615,6 +690,7 @@ class LibraryScreen extends HookConsumerWidget {
     WidgetRef ref,
     dynamic repo,
     ValueNotifier<Set<int>> selectedTrackIds,
+    ValueNotifier<List<int>> availableTrackIds,
     ValueNotifier<String> searchQuery,
     void Function(int) toggleSelection,
     bool isSelectionMode,
@@ -625,6 +701,7 @@ class LibraryScreen extends HookConsumerWidget {
           ref,
           repo,
           selectedTrackIds,
+          availableTrackIds,
           searchQuery,
           toggleSelection,
           isSelectionMode,

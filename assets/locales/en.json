@@ -162,5 +162,7 @@
   "originalAuthor": "Original author",
   "unknownArtist": "Unknown Artist",
   "openMainWindow": "Show main window",
-  "quit": "Quit"
+  "quit": "Quit",
+  "selectAll": "Select all",
+  "invertSelection": "Invert selection"
 }

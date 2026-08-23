@@ -163,5 +163,7 @@
   "originalAuthor": "原作者",
   "unknownArtist": "未知艺术家",
   "openMainWindow": "显示主窗口",
-  "quit": "退出"
+  "quit": "退出",
+  "selectAll": "全选",
+  "invertSelection": "反选"
 }
