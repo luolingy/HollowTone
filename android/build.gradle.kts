@@ -21,46 +21,24 @@ subprojects {
     afterEvaluate {
         if (!plugins.hasPlugin("com.android.library")) return@afterEvaluate
         val android = extensions.getByName("android")
-        val methods = android.javaClass.methods
-        // Legacy pub plugins (e.g. flutter_media_metadata) neither declare a
-        // namespace nor keep pace with modern compileSdk requirements.
-        val getNamespace = methods.firstOrNull { it.name == "getNamespace" }
-            ?: return@afterEvaluate
-        if (getNamespace.invoke(android) == null) {
-            val manifest = file("src/main/AndroidManifest.xml")
-            if (manifest.isFile) {
-                val document =
-                    javax.xml.parsers.DocumentBuilderFactory.newInstance()
-                        .newDocumentBuilder()
-                        .parse(manifest)
-                val packageName = document.documentElement.getAttribute("package")
-                if (packageName.isNotBlank()) {
-                    methods
-                        .firstOrNull {
-                            it.name == "setNamespace" &&
-                                it.parameterTypes.contentEquals(arrayOf(String::class.java))
-                        }
-                        ?.invoke(android, packageName)
-                }
+        val getNamespace =
+            android.javaClass.methods.firstOrNull { it.name == "getNamespace" }
+                ?: return@afterEvaluate
+        if (getNamespace.invoke(android) != null) return@afterEvaluate
+        val manifest = file("src/main/AndroidManifest.xml")
+        if (!manifest.isFile) return@afterEvaluate
+        val document =
+            javax.xml.parsers.DocumentBuilderFactory.newInstance()
+                .newDocumentBuilder()
+                .parse(manifest)
+        val packageName = document.documentElement.getAttribute("package")
+        if (packageName.isBlank()) return@afterEvaluate
+        android.javaClass.methods
+            .firstOrNull {
+                it.name == "setNamespace" &&
+                    it.parameterTypes.contentEquals(arrayOf(String::class.java))
             }
-        }
-        val appCompileSdk =
-            rootProject.project(":app").extensions.getByName("android")
-                .let { ext ->
-                    ext.javaClass.methods
-                        .firstOrNull { it.name == "getCompileSdk" }
-                        ?.invoke(ext) as? Int
-                } ?: 34
-        val getCompileSdk =
-            methods.firstOrNull { it.name == "getCompileSdk" } ?: return@afterEvaluate
-        if ((getCompileSdk.invoke(android) as? Int ?: 0) < appCompileSdk) {
-            methods
-                .firstOrNull {
-                    it.name == "setCompileSdk" &&
-                        it.parameterTypes.firstOrNull() == Integer.TYPE
-                }
-                ?.invoke(android, appCompileSdk)
-        }
+            ?.invoke(android, packageName)
     }
     project.evaluationDependsOn(":app")
 }
