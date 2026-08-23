@@ -34,7 +34,7 @@ final class PlaylistRepositoryProvider
 }
 
 String _$playlistRepositoryHash() =>
-    r'20c2c56f237a9e3ac3efe1225d05db8264b19678';
+    r'ce07d03d3b2b195afaff49249f88c362fe69b3d4';
 
 abstract class _$PlaylistRepository extends $AsyncNotifier<void> {
   FutureOr<void> build();

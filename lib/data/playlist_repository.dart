@@ -21,7 +21,7 @@ class PlaylistRepository extends _$PlaylistRepository {
 
   Stream<List<Track>> watchPlaylistTracks(int playlistId) {
     final db = ref.watch(databaseProvider);
-    // Join PlaylistsEntries with Tracks
+    // Join PlaylistsEntries with Tracks, honoring the persisted custom order.
     final query =
         db.select(db.playlistEntries).join([
             innerJoin(
@@ -30,7 +30,10 @@ class PlaylistRepository extends _$PlaylistRepository {
             ),
           ])
           ..where(db.playlistEntries.playlistId.equals(playlistId))
-          ..orderBy([OrderingTerm(expression: db.playlistEntries.addedAt)]);
+          ..orderBy([
+            OrderingTerm(expression: db.playlistEntries.position),
+            OrderingTerm(expression: db.playlistEntries.addedAt),
+          ]);
 
     return query.map((row) => row.readTable(db.tracks)).watch();
   }
@@ -42,15 +45,44 @@ class PlaylistRepository extends _$PlaylistRepository {
 
   Future<void> addToPlaylist(int playlistId, int trackId) async {
     final db = ref.read(databaseProvider);
+
+    // Append at the end of the custom order.
+    final maxExp = db.playlistEntries.position.max();
+    final row =
+        await (db.selectOnly(db.playlistEntries)
+              ..addColumns([maxExp])
+              ..where(db.playlistEntries.playlistId.equals(playlistId)))
+            .getSingleOrNull();
+    final nextPos = (row?.read(maxExp) ?? -1) + 1;
+
     await db
         .into(db.playlistEntries)
         .insert(
           PlaylistEntriesCompanion.insert(
             playlistId: playlistId,
             trackId: trackId,
+            position: Value(nextPos),
           ),
           mode: InsertMode.insertOrIgnore, // Prevent dupes if needed, or allow
         );
+  }
+
+  /// Persists a custom track order for [playlistId].
+  Future<void> reorderPlaylistTracks(
+    int playlistId,
+    List<int> orderedTrackIds,
+  ) async {
+    final db = ref.read(databaseProvider);
+    await db.transaction(() async {
+      for (final entry in orderedTrackIds.indexed) {
+        await (db.update(db.playlistEntries)..where(
+              (e) =>
+                  e.playlistId.equals(playlistId) &
+                  e.trackId.equals(entry.$2),
+            ))
+            .write(PlaylistEntriesCompanion(position: Value(entry.$1)));
+      }
+    });
   }
 
   Future<void> deletePlaylist(int playlistId) async {

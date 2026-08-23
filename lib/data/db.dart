@@ -29,6 +29,7 @@ class PlaylistEntries extends Table {
   IntColumn get playlistId => integer().references(Playlists, #id)();
   IntColumn get trackId =>
       integer().references(Tracks, #id, onDelete: KeyAction.cascade)();
+  IntColumn get position => integer().withDefault(const Constant(0))();
   DateTimeColumn get addedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
@@ -75,7 +76,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 7; // Bump version for remote providers
+  int get schemaVersion => 8; // Bump version for playlist entry positions
 
   @override
   MigrationStrategy get migration {
@@ -105,6 +106,10 @@ class AppDatabase extends _$AppDatabase {
         if (from < 7) {
           // Create table for remote providers
           await m.createTable(remoteProviders);
+        }
+        if (from < 8) {
+          // Custom ordering for playlist entries
+          await m.addColumn(playlistEntries, playlistEntries.position);
         }
       },
     );

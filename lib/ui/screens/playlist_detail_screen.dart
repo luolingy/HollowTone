@@ -92,15 +92,34 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                             ),
                           ),
                         ),
-                        // Track list
-                        ...List.generate(tracks.length, (index) {
-                          return _buildTrackTile(
-                            ref,
-                            tracks,
-                            index,
-                            isLargeScreen,
-                          );
-                        }),
+                        // Track list with drag-to-reorder custom ordering
+                        ReorderableListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          buildDefaultDragHandles: true,
+                          onReorder: (oldIndex, newIndex) async {
+                            if (oldIndex < newIndex) newIndex -= 1;
+                            final ids = tracks.map((t) => t.id).toList();
+                            final moved = ids.removeAt(oldIndex);
+                            ids.insert(newIndex, moved);
+                            await repo.reorderPlaylistTracks(playlist.id, ids);
+                          },
+                          children: [
+                            for (final index in List<int>.generate(
+                              tracks.length,
+                              (i) => i,
+                            ))
+                              KeyedSubtree(
+                                key: ValueKey('playlist_track_${tracks[index].id}'),
+                                child: _buildTrackTile(
+                                  ref,
+                                  tracks,
+                                  index,
+                                  isLargeScreen,
+                                ),
+                              ),
+                          ],
+                        ),
                         // Gap for mini player
                         const Gap(80),
                       ],
