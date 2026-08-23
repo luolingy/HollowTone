@@ -1,13 +1,7 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:groovybox/logic/audio_handler.dart';
 import 'package:groovybox/data/track_repository.dart';
-import 'package:groovybox/logic/desktop_lyrics_manager.dart';
 import 'package:groovybox/logic/mpv_hot_restart_cleaner.dart';
 import 'package:groovybox/logic/tray_helpers.dart';
 import 'package:groovybox/logic/window_helpers.dart';
@@ -19,29 +13,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:audio_service/audio_service.dart' as audio_service;
 
-import 'package:groovybox/ui/desktop_lyrics_overlay.dart';
-
 late AudioHandler _audioHandler;
 
-Future<void> main(List<String> args) async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Sub-window engines spawned for the desktop lyrics overlay run their own
-  // widget tree instead of the full app. The plugin starts those engines
-  // with ['multi_window', <id>, <arguments>] entrypoint arguments.
-  if (!kIsWeb &&
-      Platform.isWindows &&
-      args.firstOrNull == 'multi_window') {
-    final controller = await WindowController.fromCurrentEngine();
-    if (controller.arguments.contains(kDesktopLyricsWindowType)) {
-      final launchArgs =
-          (jsonDecode(controller.arguments) as Map).cast<String, dynamic>();
-      runApp(
-        DesktopLyricsOverlay(controller: controller, launchArgs: launchArgs),
-      );
-      return;
-    }
-  }
 
   // Dispose mpv handles left over from a previous hot restart BEFORE
   // media_kit initializes, to avoid "Callback invoked after it has been
@@ -102,15 +77,6 @@ class _GroovyAppState extends ConsumerState<GroovyApp> {
     super.initState();
     // Keep the app resident in the system tray on desktop platforms.
     Future(() => trayWindowHandler.init());
-    // Set up the desktop lyrics overlay (Windows only).
-    if (DesktopLyricsManager.isSupported) {
-      Future(() async {
-        await DesktopLyricsManager.instance.attach(
-          ref.read(audioHandlerProvider).player,
-          readTrack: () => ref.read(currentTrackProvider),
-        );
-      });
-    }
     // Heal tracks that were imported with broken metadata (e.g. empty titles
     // from flutter_media_metadata's Windows non-ASCII path bug).
     Future(() async {

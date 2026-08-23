@@ -1,4 +1,4 @@
-import 'package:easy_localization/easy_localization.dart';
+﻿import 'package:easy_localization/easy_localization.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -14,7 +14,6 @@ import 'package:gap/gap.dart';
 import 'package:groovybox/data/db.dart' as db;
 import 'package:groovybox/data/track_repository.dart';
 
-import 'package:groovybox/logic/desktop_lyrics_manager.dart';
 import 'package:groovybox/logic/lrc_providers.dart';
 import 'package:groovybox/logic/lyrics_parser.dart';
 import 'package:groovybox/logic/metadata_service.dart';
@@ -2068,8 +2067,6 @@ class _PlayerControls extends HookWidget {
               icon: const Icon(Symbols.skip_next, size: 32),
               onPressed: player.next,
             ),
-            // Desktop lyrics overlay toggle (next to the play mode button).
-            const _DesktopLyricsToggleButton(),
             // Unified playback mode selector.
             _PlayModeButton(player: player),
           ],
@@ -2607,36 +2604,3 @@ class _PlayModeButton extends StatelessWidget {
   }
 }
 
-/// Toggles the desktop lyrics overlay window.
-class _DesktopLyricsToggleButton extends StatefulWidget {
-  const _DesktopLyricsToggleButton();
-
-  @override
-  State<_DesktopLyricsToggleButton> createState() =>
-      _DesktopLyricsToggleButtonState();
-}
-
-class _DesktopLyricsToggleButtonState
-    extends State<_DesktopLyricsToggleButton> {
-  late bool _on = DesktopLyricsManager.instance.isEnabled;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!DesktopLyricsManager.isSupported) {
-      return const SizedBox.shrink();
-    }
-    return IconButton(
-      tooltip: 'desktopLyrics'.tr(),
-      icon: Icon(
-        Symbols.lyrics,
-        color: _on
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).disabledColor,
-      ),
-      onPressed: () async {
-        await DesktopLyricsManager.instance.toggle();
-        if (mounted) setState(() => _on = DesktopLyricsManager.instance.isEnabled);
-      },
-    );
-  }
-}
