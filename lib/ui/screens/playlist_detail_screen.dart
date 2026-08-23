@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:groovybox/data/db.dart';
 import 'package:groovybox/data/playlist_repository.dart';
@@ -12,6 +13,34 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:styled_widget/styled_widget.dart';
 
+/// Shifts every selected position one slot toward [up] while keeping the
+/// relative order inside the selection and inside the rest of the list.
+List<int> _shiftedOrder(int n, Set<int> selected, bool up) {
+  final order = List<int>.generate(n, (i) => i);
+  if (up) {
+    for (var i = 0; i < order.length; i++) {
+      if (selected.contains(order[i]) &&
+          i > 0 &&
+          !selected.contains(order[i - 1])) {
+        final t = order[i];
+        order[i] = order[i - 1];
+        order[i - 1] = t;
+      }
+    }
+  } else {
+    for (var i = order.length - 1; i >= 0; i--) {
+      if (selected.contains(order[i]) &&
+          i < order.length - 1 &&
+          !selected.contains(order[i + 1])) {
+        final t = order[i];
+        order[i] = order[i + 1];
+        order[i + 1] = t;
+      }
+    }
+  }
+  return order;
+}
+
 class PlaylistDetailScreen extends HookConsumerWidget {
   final Playlist playlist;
 
@@ -21,6 +50,7 @@ class PlaylistDetailScreen extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final repo = ref.watch(playlistRepositoryProvider.notifier);
     final tracksAsync = repo.watchPlaylistTracks(playlist.id);
+    final selectedIds = useState<Set<int>>({});
 
     // Responsive breakpoints
     final screenWidth = MediaQuery.sizeOf(context).width;
@@ -58,6 +88,24 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                       );
                     }
 
+                    final selecting = selectedIds.value.isNotEmpty;
+
+                    Future<void> moveSelected(bool up) async {
+                      final sel = selectedIds.value;
+                      if (sel.isEmpty) return;
+                      final ids = tracks.map((t) => t.id).toList();
+                      final positions = <int>{
+                        for (var i = 0; i < ids.length; i++)
+                          if (sel.contains(ids[i])) i,
+                      };
+                      final order = _shiftedOrder(ids.length, positions, up);
+                      await repo.reorderPlaylistTracks(
+                        playlist.id,
+                        [for (final i in order) ids[i]],
+                      );
+                      selectedIds.value = {};
+                    }
+
                     return Column(
                       children: [
                         // Action buttons
@@ -92,11 +140,46 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                             ),
                           ),
                         ),
+                        // Selection toolbar for batch moving
+                        if (selecting)
+                          Material(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.surfaceContainerHighest,
+                            child: Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Symbols.close),
+                                  onPressed: () => selectedIds.value = {},
+                                ),
+                                Expanded(
+                                  child: Text(
+                                    'selected'.tr(
+                                      args: [
+                                        selectedIds.value.length.toString(),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Symbols.arrow_upward),
+                                  tooltip: 'up'.tr(),
+                                  onPressed: () => moveSelected(true),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Symbols.arrow_downward),
+                                  tooltip: 'down'.tr(),
+                                  onPressed: () => moveSelected(false),
+                                ),
+                                const Gap(4),
+                              ],
+                            ),
+                          ),
                         // Track list with drag-to-reorder custom ordering
                         ReorderableListView(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          buildDefaultDragHandles: true,
+                          buildDefaultDragHandles: !selecting,
                           onReorder: (oldIndex, newIndex) async {
                             if (oldIndex < newIndex) newIndex -= 1;
                             final ids = tracks.map((t) => t.id).toList();
@@ -116,6 +199,18 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                                   tracks,
                                   index,
                                   isLargeScreen,
+                                  selecting: selecting,
+                                  isSelected: selectedIds.value.contains(
+                                    tracks[index].id,
+                                  ),
+                                  onToggleSelected: () {
+                                    final next = Set<int>.from(
+                                      selectedIds.value,
+                                    );
+                                    final id = tracks[index].id;
+                                    if (!next.remove(id)) next.add(id);
+                                    selectedIds.value = next;
+                                  },
                                 ),
                               ),
                           ],
@@ -138,18 +233,28 @@ class PlaylistDetailScreen extends HookConsumerWidget {
     WidgetRef ref,
     List<Track> tracks,
     int index,
-    bool isLargeScreen,
-  ) {
+    bool isLargeScreen, {
+    required bool selecting,
+    required bool isSelected,
+    required VoidCallback onToggleSelected,
+  }) {
     final track = tracks[index];
     return TrackTile(
       track: track,
-      leading: Text(
-        '${index + 1}'.padLeft(2, '0'),
-        style: const TextStyle(color: Colors.grey, fontSize: 16),
-      ).padding(right: isLargeScreen ? 24 : 16),
+      leading: selecting
+          ? Checkbox(value: isSelected, onChanged: (_) => onToggleSelected())
+          : Text(
+              '${index + 1}'.padLeft(2, '0'),
+              style: const TextStyle(color: Colors.grey, fontSize: 16),
+            ).padding(right: isLargeScreen ? 24 : 16),
       showTrailingIcon: false,
+      onLongPress: onToggleSelected,
       onTap: () {
-        _playPlaylist(ref, tracks, initialIndex: index);
+        if (selecting) {
+          onToggleSelected();
+        } else {
+          _playPlaylist(ref, tracks, initialIndex: index);
+        }
       },
       padding: EdgeInsets.symmetric(
         horizontal: isLargeScreen ? 24 : 16,

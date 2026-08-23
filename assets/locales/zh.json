@@ -165,5 +165,7 @@
   "openMainWindow": "显示主窗口",
   "quit": "退出",
   "selectAll": "全选",
-  "invertSelection": "反选"
+  "invertSelection": "反选",
+  "up": "上移",
+  "down": "下移"
 }

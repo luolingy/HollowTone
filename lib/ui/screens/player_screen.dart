@@ -1187,9 +1187,67 @@ class _QueueView extends HookConsumerWidget {
 
   const _QueueView({super.key, required this.player});
 
+  /// Shifts every selected position one slot toward [up] while keeping the
+  /// relative order inside the selection and inside the rest of the list.
+  static List<int> _shiftedOrder(int n, Set<int> selected, bool up) {
+    final order = List<int>.generate(n, (i) => i);
+    if (up) {
+      for (var i = 0; i < order.length; i++) {
+        if (selected.contains(order[i]) &&
+            i > 0 &&
+            !selected.contains(order[i - 1])) {
+          final t = order[i];
+          order[i] = order[i - 1];
+          order[i - 1] = t;
+        }
+      }
+    } else {
+      for (var i = order.length - 1; i >= 0; i--) {
+        if (selected.contains(order[i]) &&
+            i < order.length - 1 &&
+            !selected.contains(order[i + 1])) {
+          final t = order[i];
+          order[i] = order[i + 1];
+          order[i + 1] = t;
+        }
+      }
+    }
+    return order;
+  }
+
+  /// Realizes [desired] (an ordering of original indices) through successive
+  /// single-item [Player.move] calls.
+  Future<void> _applyOrder(Player player, List<int> desired) async {
+    final current = List<int>.generate(desired.length, (i) => i);
+    for (var slot = 0; slot < desired.length; slot++) {
+      final wanted = desired[slot];
+      final pos = current.indexOf(wanted);
+      if (pos != slot) {
+        await player.move(pos, slot);
+        current.removeAt(pos);
+        current.insert(slot, wanted);
+      }
+    }
+  }
+
+  Future<void> _moveSelected(
+    Player player,
+    Playlist playlist,
+    Set<int> selected,
+    bool up,
+  ) async {
+    if (selected.isEmpty || playlist.medias.isEmpty) return;
+    await _applyOrder(
+      player,
+      _shiftedOrder(playlist.medias.length, selected, up),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = MediaQuery.sizeOf(context).width <= 800;
+    final selected = useState<Set<int>>({});
+    final selecting = selected.value.isNotEmpty;
 
     return Column(
       children: [
@@ -1203,7 +1261,13 @@ class _QueueView extends HookConsumerWidget {
                 return Center(child: Text('noTracksInQueue'.tr()));
               }
 
-              return ReorderableListView.builder(
+              void toggle(int index) {
+                final next = Set<int>.from(selected.value);
+                if (!next.remove(index)) next.add(index);
+                selected.value = next;
+              }
+
+              Widget list = ReorderableListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
                 itemCount: playlist.medias.length,
                 buildDefaultDragHandles: true,
@@ -1264,7 +1328,9 @@ class _QueueView extends HookConsumerWidget {
                           index: index,
                           child: Dismissible(
                             key: Key('queue_item_$index'),
-                            direction: DismissDirection.endToStart,
+                            direction: selecting
+                                ? DismissDirection.none
+                                : DismissDirection.endToStart,
                             background: Container(
                               color: Colors.red,
                               alignment: Alignment.centerRight,
@@ -1276,10 +1342,15 @@ class _QueueView extends HookConsumerWidget {
                             ),
                             onDismissed: (direction) => player.remove(index),
                             child: TrackTile(
-                              leading: Text(
-                                (index + 1).toString().padLeft(2, '0'),
-                                style: TextStyle(fontSize: 14),
-                              ).padding(right: 8),
+                              leading: selecting
+                                  ? Checkbox(
+                                      value: selected.value.contains(index),
+                                      onChanged: (_) => toggle(index),
+                                    )
+                                  : Text(
+                                      (index + 1).toString().padLeft(2, '0'),
+                                      style: TextStyle(fontSize: 14),
+                                    ).padding(right: 8),
                               track:
                                   track ??
                                   db.Track(
@@ -1298,8 +1369,15 @@ class _QueueView extends HookConsumerWidget {
                                     lyricsOffset: 0,
                                     addedAt: DateTime.now(),
                                   ),
-                              isPlaying: isCurrent,
-                              onTap: () => player.jump(index),
+                              isPlaying: isCurrent && !selecting,
+                              onTap: () {
+                                if (selecting) {
+                                  toggle(index);
+                                } else {
+                                  player.jump(index);
+                                }
+                              },
+                              onLongPress: () => toggle(index),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 16,
                               ),
@@ -1311,6 +1389,52 @@ class _QueueView extends HookConsumerWidget {
                         ),
                   );
                 },
+              );
+
+              if (!selecting) return list;
+              return Column(
+                children: [
+                  Material(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Symbols.close),
+                          onPressed: () => selected.value = {},
+                        ),
+                        Expanded(
+                          child: Text(
+                            'selected'.tr(
+                              args: [selected.value.length.toString()],
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Symbols.arrow_upward),
+                          tooltip: 'up'.tr(),
+                          onPressed: () => _moveSelected(
+                            player,
+                            playlist,
+                            selected.value,
+                            true,
+                          ).whenComplete(() => selected.value = {}),
+                        ),
+                        IconButton(
+                          icon: const Icon(Symbols.arrow_downward),
+                          tooltip: 'down'.tr(),
+                          onPressed: () => _moveSelected(
+                            player,
+                            playlist,
+                            selected.value,
+                            false,
+                          ).whenComplete(() => selected.value = {}),
+                        ),
+                        const Gap(4),
+                      ],
+                    ),
+                  ),
+                  Expanded(child: list),
+                ],
               );
             },
           ),

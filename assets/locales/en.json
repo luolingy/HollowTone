@@ -164,5 +164,7 @@
   "openMainWindow": "Show main window",
   "quit": "Quit",
   "selectAll": "Select all",
-  "invertSelection": "Invert selection"
+  "invertSelection": "Invert selection",
+  "up": "Move up",
+  "down": "Move down"
 }
