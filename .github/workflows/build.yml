@@ -46,25 +46,29 @@ jobs:
         run: |
           flutter build windows --release --build-name=$env:BUILD_NAME --build-number=$env:BUILD_NUMBER
           Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath groovybox-windows-$env:BUILD_NAME-portable.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: groovybox-Windows-portable
+          path: groovybox-windows-${{ env.BUILD_NAME }}-portable.zip
       - name: Build installer (Inno Setup)
-        continue-on-error: true
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
+          $iscc = (Get-ChildItem 'C:\Program Files*\Inno Setup *\ISCC.exe' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $iscc) { throw 'ISCC.exe not found' }
+          Write-Host "Using ISCC: $iscc"
           (Get-Content setup.iss -Raw) `
             -replace '#define AppVersion "[^"]*"', ('#define AppVersion "' + $env:BUILD_NAME + '"') `
             -replace '#define BuildNumber "[^"]*"', ('#define BuildNumber "' + $env:BUILD_NUMBER + '"') `
             -replace 'OutputBaseFilename=.*', ('OutputBaseFilename=groovybox-windows-' + $env:BUILD_NAME + '-setup') |
             Set-Content setup.iss -Encoding utf8
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
-      - uses: actions/upload-artifact@v4
-        with:
-          name: groovybox-Windows-portable
-          path: groovybox-windows-${{ env.BUILD_NAME }}-portable.zip
+          & $iscc setup.iss
+          Get-ChildItem Installer
       - uses: actions/upload-artifact@v4
         with:
           name: groovybox-Windows-installer
           path: Installer/*.exe
+          if-no-files-found: error
 
   linux:
     if: inputs.build_linux
@@ -113,6 +117,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
       - name: Build
+        env:
+          FLUTTER_XCODE_CODE_SIGNING_ALLOWED: "NO"
+          FLUTTER_XCODE_CODE_SIGN_IDENTITY: "-"
+          FLUTTER_XCODE_DEVELOPMENT_TEAM: ""
         run: flutter build macos --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - run: |
           cd build/macos/Build/Products/Release

@@ -16,10 +16,8 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-subprojects {
+    // Must be registered before evaluationDependsOn(":app") below forces :app
+    // to evaluate immediately, otherwise registration would be too late.
     afterEvaluate {
         if (!plugins.hasPlugin("com.android.library")) return@afterEvaluate
         val android = extensions.getByName("android")
@@ -42,6 +40,7 @@ subprojects {
             }
             ?.invoke(android, packageName)
     }
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
