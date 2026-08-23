@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  desktop_multi_window
   flutter_media_metadata
   media_kit_libs_windows_audio
   screen_retriever_windows
