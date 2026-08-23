@@ -103,7 +103,6 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                         playlist.id,
                         [for (final i in order) ids[i]],
                       );
-                      selectedIds.value = {};
                     }
 
                     return Column(
@@ -148,16 +147,15 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                             ).colorScheme.surfaceContainerHighest,
                             child: Row(
                               children: [
-                                IconButton(
-                                  icon: const Icon(Symbols.close),
-                                  onPressed: () => selectedIds.value = {},
-                                ),
                                 Expanded(
-                                  child: Text(
-                                    'selected'.tr(
-                                      args: [
-                                        selectedIds.value.length.toString(),
-                                      ],
+                                  child: Padding(
+                                    padding: const EdgeInsets.only(left: 16),
+                                    child: Text(
+                                      'selected'.tr(
+                                        args: [
+                                          selectedIds.value.length.toString(),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -170,6 +168,11 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                                   icon: const Icon(Symbols.arrow_downward),
                                   tooltip: 'down'.tr(),
                                   onPressed: () => moveSelected(false),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Symbols.check),
+                                  tooltip: 'done'.tr(),
+                                  onPressed: () => selectedIds.value = {},
                                 ),
                                 const Gap(4),
                               ],

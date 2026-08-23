@@ -14,6 +14,7 @@ import 'package:gap/gap.dart';
 import 'package:groovybox/data/db.dart' as db;
 import 'package:groovybox/data/track_repository.dart';
 
+import 'package:groovybox/logic/desktop_lyrics_manager.dart';
 import 'package:groovybox/logic/lrc_providers.dart';
 import 'package:groovybox/logic/lyrics_parser.dart';
 import 'package:groovybox/logic/metadata_service.dart';
@@ -555,7 +556,7 @@ class _PlayerLyrics extends HookConsumerWidget {
       addedAt: DateTime.now(),
     );
 
-    return _buildLyricsContent(
+    return _buildLyricsShell(track, ref, context, () => _buildLyricsContent(
       track,
       metadataAsync,
       ref,
@@ -564,6 +565,44 @@ class _PlayerLyrics extends HookConsumerWidget {
       neteaseProviderInstance,
       lrclibProviderInstance,
       context,
+    ));
+  }
+
+  /// Wraps the lyric views and adds a desktop-lyrics toggle when supported.
+  Widget _buildLyricsShell(
+    db.Track track,
+    WidgetRef ref,
+    BuildContext context,
+    Widget Function() buildContent,
+  ) {
+    if (!DesktopLyricsManager.isSupported || track.lyrics == null) {
+      return buildContent();
+    }
+    final overlayOn = useState(DesktopLyricsManager.instance.isEnabled);
+    return Stack(
+      children: [
+        Positioned.fill(child: buildContent()),
+        Positioned(
+          top: 8,
+          right: 12,
+          child: IconButton(
+            tooltip: 'desktopLyrics'.tr(),
+            icon: Icon(
+              Symbols.lyrics,
+              size: 20,
+              color: overlayOn.value
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(context).colorScheme.onSurface.withValues(
+                      alpha: 0.5,
+                    ),
+            ),
+            onPressed: () async {
+              await DesktopLyricsManager.instance.toggle();
+              overlayOn.value = DesktopLyricsManager.instance.isEnabled;
+            },
+          ),
+        ),
+      ],
     );
   }
 
@@ -1216,8 +1255,9 @@ class _QueueView extends HookConsumerWidget {
   }
 
   /// Realizes [desired] (an ordering of original indices) through successive
-  /// single-item [Player.move] calls.
-  Future<void> _applyOrder(Player player, List<int> desired) async {
+  /// single-item [Player.move] calls and returns `posOf`, where
+  /// `posOf[originalIndex]` is the item's new position.
+  Future<List<int>> _applyOrder(Player player, List<int> desired) async {
     final current = List<int>.generate(desired.length, (i) => i);
     for (var slot = 0; slot < desired.length; slot++) {
       final wanted = desired[slot];
@@ -1228,19 +1268,28 @@ class _QueueView extends HookConsumerWidget {
         current.insert(slot, wanted);
       }
     }
+    final posOf = List<int>.generate(desired.length, (i) => i);
+    for (var slot = 0; slot < current.length; slot++) {
+      posOf[current[slot]] = slot;
+    }
+    return posOf;
   }
 
-  Future<void> _moveSelected(
+  /// Moves the selected block one slot and remaps the selection to the
+  /// items' new positions so the user can keep nudging it around.
+  Future<void> _moveBlock(
     Player player,
     Playlist playlist,
-    Set<int> selected,
+    ValueNotifier<Set<int>> selected,
     bool up,
   ) async {
-    if (selected.isEmpty || playlist.medias.isEmpty) return;
-    await _applyOrder(
+    final sel = selected.value;
+    if (sel.isEmpty || playlist.medias.isEmpty) return;
+    final posOf = await _applyOrder(
       player,
-      _shiftedOrder(playlist.medias.length, selected, up),
+      _shiftedOrder(playlist.medias.length, sel, up),
     );
+    selected.value = {for (final old in sel) posOf[old]};
   }
 
   @override
@@ -1398,36 +1447,40 @@ class _QueueView extends HookConsumerWidget {
                     color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Row(
                       children: [
-                        IconButton(
-                          icon: const Icon(Symbols.close),
-                          onPressed: () => selected.value = {},
-                        ),
                         Expanded(
-                          child: Text(
-                            'selected'.tr(
-                              args: [selected.value.length.toString()],
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 16),
+                            child: Text(
+                              'selected'.tr(
+                                args: [selected.value.length.toString()],
+                              ),
                             ),
                           ),
                         ),
                         IconButton(
                           icon: const Icon(Symbols.arrow_upward),
                           tooltip: 'up'.tr(),
-                          onPressed: () => _moveSelected(
+                          onPressed: () => _moveBlock(
                             player,
                             playlist,
-                            selected.value,
+                            selected,
                             true,
-                          ).whenComplete(() => selected.value = {}),
+                          ),
                         ),
                         IconButton(
                           icon: const Icon(Symbols.arrow_downward),
                           tooltip: 'down'.tr(),
-                          onPressed: () => _moveSelected(
+                          onPressed: () => _moveBlock(
                             player,
                             playlist,
-                            selected.value,
+                            selected,
                             false,
-                          ).whenComplete(() => selected.value = {}),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Symbols.check),
+                          tooltip: 'done'.tr(),
+                          onPressed: () => selected.value = {},
                         ),
                         const Gap(4),
                       ],

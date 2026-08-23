@@ -166,5 +166,6 @@
   "selectAll": "Select all",
   "invertSelection": "Invert selection",
   "up": "Move up",
-  "down": "Move down"
+  "down": "Move down",
+  "done": "Done"
 }

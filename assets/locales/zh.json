@@ -167,5 +167,6 @@
   "selectAll": "全选",
   "invertSelection": "反选",
   "up": "上移",
-  "down": "下移"
+  "down": "下移",
+  "done": "完成"
 }
