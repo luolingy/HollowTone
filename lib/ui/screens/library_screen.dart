@@ -719,7 +719,12 @@ class LibraryScreen extends HookConsumerWidget {
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return SafeArea(
+        // Clear the mini player bar (72px + system inset) so the last menu
+        // entries stay tappable.
+        final bottomClearance =
+            72.0 + MediaQuery.of(context).viewPadding.bottom;
+        return Padding(
+          padding: EdgeInsets.only(bottom: bottomClearance),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
