@@ -34,8 +34,8 @@ class TrayWindowHandler with TrayListener, WindowListener {
 
   Future<void> refreshTray() async {
     final icon = Platform.isWindows
-        ? 'assets/images/icon-rounded.ico'
-        : 'assets/images/icon-rounded.png';
+        ? 'assets/images/icon.ico'
+        : 'assets/images/icon.png';
     try {
       await trayManager.setIcon(icon);
       await trayManager.setToolTip('GroovyBox');

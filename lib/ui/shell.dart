@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -229,7 +229,7 @@ class Shell extends HookConsumerWidget {
                                         Theme.of(context).brightness ==
                                                 Brightness.dark
                                             ? 'assets/images/icon-dark.png'
-                                            : 'assets/images/icon.jpg',
+                                            : 'assets/images/icon.png',
                                         width: 20,
                                         height: 20,
                                       ),
