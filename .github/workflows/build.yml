@@ -173,12 +173,15 @@ jobs:
           EOF
       - name: Get dependencies
         run: flutter pub get
-      - name: Patch legacy plugin compileSdk
+      - name: Patch legacy plugin
         run: |
           PLUGIN_DIR=$(find ~/.pub-cache -maxdepth 3 -type d -name "flutter_media_metadata-*" | sort | tail -n 1)
+          JAVA_FILE="$PLUGIN_DIR/android/src/main/java/com/alexmercerind/flutter_media_metadata/FlutterMediaMetadataPlugin.java"
           echo "Patching $PLUGIN_DIR"
           sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 35/' "$PLUGIN_DIR/android/build.gradle"
           grep -n "compileSdkVersion 35" "$PLUGIN_DIR/android/build.gradle"
+          sed -i 's/retriever\.release();/try { retriever.release(); } catch (java.io.IOException e) { }/' "$JAVA_FILE"
+          grep -n "catch (java.io.IOException" "$JAVA_FILE"
       - name: Build APK
         run: flutter build apk --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - uses: actions/upload-artifact@v4
