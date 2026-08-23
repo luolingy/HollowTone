@@ -27,20 +27,19 @@ Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Sub-window engines spawned for the desktop lyrics overlay run their own
-  // widget tree instead of the full app.
-  if (!kIsWeb && Platform.isWindows) {
-    try {
-      final controller = await WindowController.fromCurrentEngine();
-      if (controller.arguments.contains(kDesktopLyricsWindowType)) {
-        final launchArgs =
-            (jsonDecode(controller.arguments) as Map).cast<String, dynamic>();
-        runApp(
-          DesktopLyricsOverlay(controller: controller, launchArgs: launchArgs),
-        );
-        return;
-      }
-    } catch (_) {
-      // Not running as a sub-window (or plugin unavailable) - continue below.
+  // widget tree instead of the full app. The plugin starts those engines
+  // with ['multi_window', <id>, <arguments>] entrypoint arguments.
+  if (!kIsWeb &&
+      Platform.isWindows &&
+      args.firstOrNull == 'multi_window') {
+    final controller = await WindowController.fromCurrentEngine();
+    if (controller.arguments.contains(kDesktopLyricsWindowType)) {
+      final launchArgs =
+          (jsonDecode(controller.arguments) as Map).cast<String, dynamic>();
+      runApp(
+        DesktopLyricsOverlay(controller: controller, launchArgs: launchArgs),
+      );
+      return;
     }
   }
 

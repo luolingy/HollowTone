@@ -28,6 +28,18 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
   static const double _barHeight = 84;
   static const double _barWidth = 620;
 
+  /// Must match [Win32WindowUtils.lyricsColorKeyValue]: every pixel painted
+  /// with this exact color becomes fully transparent in the layered window.
+  static const Color _colorKey = Color(0xFF010203);
+
+  // Solid colors only - any translucency would blend towards the color-key
+  // and produce green fringes.
+  static const Color _barColor = Color(0xFF12161C);
+  static const Color _barBorderIdle = Color(0xFF343A43);
+  static const Color _barBorderHover = Color(0xFF586069);
+  static const Color _secondaryText = Color(0xFF9BA2AB);
+  static const Color _iconColor = Color(0xFFB9BFC8);
+
   int? _hwnd;
   String _currentLine = '';
   String _nextLine = '';
@@ -81,6 +93,10 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
           Win32WindowUtils.showWindow(_hwnd!, show: true);
           Win32WindowUtils.makeTopMost(_hwnd!);
         }
+      case 'hide':
+        if (_hwnd != null) {
+          Win32WindowUtils.showWindow(_hwnd!, show: false);
+        }
       case 'close':
         await _hideAndNotify();
     }
@@ -108,7 +124,7 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
 
     _hwnd = hwnd;
     debugPrint('DesktopLyricsOverlay: styling hwnd=$hwnd');
-    Win32WindowUtils.styleAsLyricsOverlay(hwnd, alpha: 216);
+    Win32WindowUtils.styleAsLyricsOverlay(hwnd);
     Win32WindowUtils.moveWindow(
       hwnd,
       x: _frame.x,
@@ -183,7 +199,7 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(useMaterial3: true),
       home: Scaffold(
-        backgroundColor: Colors.transparent,
+        backgroundColor: _colorKey,
         body: MouseRegion(
           onEnter: (_) => mounted ? setState(() => _hovering = true) : null,
           onExit: (_) => mounted ? setState(() => _hovering = false) : null,
@@ -194,28 +210,23 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
               margin: const EdgeInsets.all(6),
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
               decoration: BoxDecoration(
-                color: const Color(0xCC101418),
+                color: _barColor,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: _hovering
-                      ? Colors.white24
-                      : Colors.white10,
+                  color: _hovering ? _barBorderHover : _barBorderIdle,
                 ),
               ),
               child: Row(
                 children: [
                   Expanded(child: _buildLyricText()),
-                  AnimatedOpacity(
-                    opacity: _hovering ? 1 : 0,
-                    duration: const Duration(milliseconds: 150),
-                    child: IconButton(
+                  if (_hovering)
+                    IconButton(
                       visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.close, size: 18),
-                      color: Colors.white70,
+                      color: _iconColor,
                       tooltip: 'Close',
                       onPressed: () => _hideAndNotify(),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -243,7 +254,7 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: hasLyric ? Colors.cyanAccent : Colors.white54,
+              color: hasLyric ? const Color(0xFF4DD0E1) : _secondaryText,
               shadows: const [
                 Shadow(blurRadius: 6, color: Colors.black, offset: Offset(0, 1)),
               ],
@@ -255,10 +266,10 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
             _nextLine,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
-              color: Colors.white.withValues(alpha: 0.65),
-              shadows: const [
+              color: _secondaryText,
+              shadows: [
                 Shadow(blurRadius: 4, color: Colors.black, offset: Offset(0, 1)),
               ],
             ),

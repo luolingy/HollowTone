@@ -12,7 +12,7 @@ class Win32WindowUtils {
   static const int wsExLayered = 0x00080000;
   static const int wsExToolWindow = 0x00000080;
   static const int wsExNoActivate = 0x08000000;
-  static const int lwaAlpha = 0x00000002;
+  static const int lwaColorKey = 0x00000001;
   static const int hwndTopmost = -1;
   static const int swpNoSize = 0x0001;
   static const int swpNoMove = 0x0002;
@@ -21,6 +21,13 @@ class Win32WindowUtils {
   static const int swShowNa = 8;
   static const int wmNcLButtonDown = 0x00A1;
   static const int htCaption = 2;
+
+  /// The magic color treated as fully transparent pixels in the lyrics
+  /// overlay (COLORREF 0x00BBGGRR of RGB(1, 2, 3)).
+  static const int lyricsColorKeyRef = 0x00030201;
+
+  /// The same color as a Flutter [Color] value (RGB 1, 2, 3).
+  static const int lyricsColorKeyValue = 0xFF010203;
 
   static final DynamicLibrary _user32 = DynamicLibrary.open('user32.dll');
   static final DynamicLibrary _kernel32 = DynamicLibrary.open('kernel32.dll');
@@ -172,15 +179,17 @@ class Win32WindowUtils {
   }
 
   /// Applies layered / tool-window / no-activate styles and makes [hwnd]
-  /// always-on-top with the given uniform opacity.
-  static void styleAsLyricsOverlay(int hwnd, {int alpha = 230}) {
+  /// always-on-top. Pixels painted with the exact color-key color become
+  /// fully transparent (true per-pixel transparency), everything else stays
+  /// fully opaque.
+  static void styleAsLyricsOverlay(int hwnd) {
     final exStyle = _getWindowLongPtr(hwnd, gwlExStyle);
     _setWindowLongPtr(
       hwnd,
       gwlExStyle,
       exStyle | wsExLayered | wsExToolWindow | wsExNoActivate,
     );
-    _setLayeredWindowAttributes(hwnd, 0, alpha, lwaAlpha);
+    _setLayeredWindowAttributes(hwnd, lyricsColorKeyRef, 0, lwaColorKey);
     makeTopMost(hwnd);
   }
 

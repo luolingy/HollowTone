@@ -91,7 +91,6 @@ class DesktopLyricsManager {
           'applyFrame',
           jsonEncode((await _restoreFrame()).toJson()),
         );
-        await _overlay!.invokeMethod('show');
       } else {
         final frame = await _restoreFrame();
         _overlay = await WindowController.create(
@@ -108,6 +107,12 @@ class DesktopLyricsManager {
       }
       _startRelayIfNeeded();
       _pushUpdate(force: true);
+      _scheduleRetryPushes();
+      // Only show immediately if something is already playing; otherwise the
+      // playing-state listener reveals the overlay when playback starts.
+      if (_player?.state.playing ?? false) {
+        await _overlay!.invokeMethod('show');
+      }
     } catch (e) {
       _enabled = false;
       debugPrint('DesktopLyrics: failed to show overlay: $e');
@@ -181,6 +186,35 @@ class DesktopLyricsManager {
     _relaySubs.add(
       _player!.stream.playlist.listen((_) => _pushUpdate(force: true)),
     );
+    // The overlay is only visible while audio is actually playing.
+    _relaySubs.add(
+      _player!.stream.playing.listen((playing) async {
+        if (!_enabled || _overlay == null) return;
+        try {
+          await _overlay!.invokeMethod(playing ? 'show' : 'hide');
+          if (playing) {
+            _pushUpdate(force: true);
+            _scheduleRetryPushes();
+          }
+        } catch (e) {
+          debugPrint('DesktopLyrics: visibility sync failed: $e');
+        }
+      }),
+    );
+  }
+
+  /// The overlay engine boots asynchronously; repeat the first pushes so
+  /// early messages are not lost before its method handler is registered.
+  void _scheduleRetryPushes() {
+    for (final delay in const [
+      Duration(milliseconds: 300),
+      Duration(seconds: 1),
+      Duration(seconds: 3),
+    ]) {
+      Timer(delay, () {
+        if (_enabled) _pushUpdate(force: true);
+      });
+    }
   }
 
   /// Computes the active lyric line and pushes an update when it changed.
