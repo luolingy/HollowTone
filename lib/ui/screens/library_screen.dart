@@ -515,9 +515,7 @@ class LibraryScreen extends HookConsumerWidget {
               return false;
             }).length;
             hintText = 'searchTracksFiltered'
-                .tr()
-                .replaceAll('{}', filteredCount.toString())
-                .replaceAll('{}', totalTracks.toString());
+                .tr(args: [filteredCount.toString(), totalTracks.toString()]);
           }
         }
 
@@ -1258,9 +1256,11 @@ class LibraryScreen extends HookConsumerWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          '${'batchImportComplete'.tr()} $matched ${'matched'.tr()}, $notMatched ${'notMatched'.tr()}',
-        ),
+          content: Text(
+            'batchImportComplete'.tr(
+              args: [matched.toString(), notMatched.toString()],
+            ),
+          ),
       ),
     );
   }
