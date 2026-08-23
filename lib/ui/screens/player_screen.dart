@@ -1206,7 +1206,7 @@ class _QueueView extends HookConsumerWidget {
               return ReorderableListView.builder(
                 padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
                 itemCount: playlist.medias.length,
-                buildDefaultDragHandles: false,
+                buildDefaultDragHandles: true,
                 onReorder: (oldIndex, newIndex) {
                   if (oldIndex < newIndex) {
                     newIndex -= 1;
@@ -1333,8 +1333,8 @@ class _FanLyricsView extends HookConsumerWidget {
   });
 
   static const int _half = 5;
-  static const double _itemExtent = 56;
-  static const Duration _animDuration = Duration(milliseconds: 550);
+  static const double _itemExtent = 48;
+  static const Duration _animDuration = Duration(milliseconds: 400);
   static const Curve _animCurve = Curves.easeOutCubic;
 
   @override
@@ -1448,12 +1448,20 @@ class _FanLyricsView extends HookConsumerWidget {
             // Every visible line's center lies on the same radius, and each
             // line is rotated by its own angular position so all lines stay
             // tangent to the circle, forming a true fan/arc.
-            final lineWidth = math
-                .min(paneW * 0.68, 640.0)
-                .clamp(220.0, double.infinity);
-            final pivot = Offset(-paneW * 0.15, paneH / 2);
-            final radius = math.max(paneW * 0.62 - pivot.dx, 360.0);
-            final angleStep = math.asin((_itemExtent / radius).clamp(0.0, 1.0));
+            final lineWidth = math.max(
+              math.min(paneW * 0.68, 640.0),
+              math.min(paneW - 16.0, 220.0),
+            );
+            // Fan arc around a virtual pivot left of the pane: the current
+            // line's center anchors near 55% width, every other line keeps
+            // the same radius and rotates tangentially.
+            final pivot = Offset(-paneW * 0.20, paneH / 2);
+            final radius = math.max(paneW * 0.55 - pivot.dx, 420.0);
+            var anchorX = paneW * 0.55;
+            anchorX = anchorX.clamp(
+              lineWidth / 2 + 8,
+              math.max(lineWidth / 2 + 8, paneW - lineWidth / 2 - 8),
+            );
 
             Widget buildLine(int i) {
               final line = lyrics.lines[i];
@@ -1511,7 +1519,10 @@ class _FanLyricsView extends HookConsumerWidget {
                   duration: _animDuration,
                   curve: _animCurve,
                   child: TweenAnimationBuilder<double>(
-                    tween: Tween(end: signedDist * angleStep),
+                    tween: Tween(
+                      end: math.asin((signedDist * _itemExtent / radius)
+                          .clamp(-1.0, 1.0)),
+                    ),
                     duration: _animDuration,
                     curve: _animCurve,
                     builder: (context, theta, child) {
@@ -1548,7 +1559,7 @@ class _FanLyricsView extends HookConsumerWidget {
                             duration: _animDuration,
                             curve: _animCurve,
                             style: theme.textTheme.bodyLarge!.copyWith(
-                              fontSize: 16,
+                              fontSize: isActiveLine ? 19 : 16,
                               fontWeight: isActiveLine
                                   ? FontWeight.bold
                                   : FontWeight.normal,
