@@ -177,8 +177,8 @@ jobs:
         run: |
           PLUGIN_DIR=$(find ~/.pub-cache -maxdepth 3 -type d -name "flutter_media_metadata-*" | sort | tail -n 1)
           echo "Patching $PLUGIN_DIR"
-          sed -i 's/^    compileSdkVersion 29$/    compileSdkVersion 35/' "$PLUGIN_DIR/android/build.gradle"
-          grep -n "compileSdkVersion" "$PLUGIN_DIR/android/build.gradle"
+          sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 35/' "$PLUGIN_DIR/android/build.gradle"
+          grep -n "compileSdkVersion 35" "$PLUGIN_DIR/android/build.gradle"
       - name: Build APK
         run: flutter build apk --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - uses: actions/upload-artifact@v4
