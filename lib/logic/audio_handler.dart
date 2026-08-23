@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/cupertino.dart';
@@ -130,6 +131,22 @@ class AudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         // Use metadata service for local tracks
         final metadataService = MetadataService();
         metadata = await metadataService.getMetadata(mediaItem.id);
+
+        // A user-provided cover stored in the database takes precedence over
+        // the artwork embedded in the file, so custom covers survive restarts.
+        final artUri = track?.artUri;
+        if (artUri != null && !_isNetworkUri(artUri)) {
+          final artFile = File(artUri);
+          if (await artFile.exists()) {
+            metadata = TrackMetadata(
+              title: metadata.title,
+              artist: metadata.artist,
+              album: metadata.album,
+              artBytes: await artFile.readAsBytes(),
+              durationMs: metadata.durationMs,
+            );
+          }
+        }
 
         // Update theme from album art
         final seedColorNotifier = _container!.read(seedColorProvider.notifier);
@@ -423,6 +440,9 @@ class AudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   String _extractTitleFromPath(String path) {
     return path.split('/').last.split('.').first;
   }
+
+  bool _isNetworkUri(String uri) =>
+      uri.startsWith('http://') || uri.startsWith('https://');
 
   void dispose() {
     _player.dispose();
