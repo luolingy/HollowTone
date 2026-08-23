@@ -1,7 +1,6 @@
 import 'dart:ffi';
 
 import 'package:ffi/ffi.dart';
-
 /// Minimal user32/kernel32 bindings used by the desktop lyrics overlay:
 /// finding the overlay HWND inside this process, layered-window styling,
 /// top-most placement, frame manipulation and the caption-drag move trick.
@@ -90,6 +89,28 @@ class Win32WindowUtils {
       _user32.lookupFunction<Int32 Function(IntPtr), int Function(int)>(
         'IsWindowVisible',
       );
+
+  static final int Function(int, int) _findWindowW =
+      _user32.lookupFunction<IntPtr Function(IntPtr, IntPtr), int Function(
+        int,
+        int,
+      )>('FindWindowW');
+
+  /// Returns the first top-level window whose Win32 class matches
+  /// [className], or `null`. The desktop_multi_window plugin registers its
+  /// sub windows under the dedicated class below, which makes locating the
+  /// lyrics overlay deterministic.
+  static const String multiWindowClassName = 'FLUTTER_MULTI_WINDOW_WIN32_WINDOW';
+
+  static int? findFirstWindowOfClass(String className) {
+    final classNamePtr = className.toNativeUtf16();
+    try {
+      final hwnd = _findWindowW(classNamePtr.address, 0);
+      return hwnd == 0 ? null : hwnd;
+    } finally {
+      calloc.free(classNamePtr);
+    }
+  }
 
   /// HWNDs collected by the last [snapshotVisibleWindows] call. EnumWindows
   /// invokes the callback synchronously on the calling thread, so this list

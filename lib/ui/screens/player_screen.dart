@@ -556,7 +556,7 @@ class _PlayerLyrics extends HookConsumerWidget {
       addedAt: DateTime.now(),
     );
 
-    return _buildLyricsShell(track, ref, context, () => _buildLyricsContent(
+    return _buildLyricsContent(
       track,
       metadataAsync,
       ref,
@@ -565,44 +565,6 @@ class _PlayerLyrics extends HookConsumerWidget {
       neteaseProviderInstance,
       lrclibProviderInstance,
       context,
-    ));
-  }
-
-  /// Wraps the lyric views and adds a desktop-lyrics toggle when supported.
-  Widget _buildLyricsShell(
-    db.Track track,
-    WidgetRef ref,
-    BuildContext context,
-    Widget Function() buildContent,
-  ) {
-    if (!DesktopLyricsManager.isSupported || track.lyrics == null) {
-      return buildContent();
-    }
-    final overlayOn = useState(DesktopLyricsManager.instance.isEnabled);
-    return Stack(
-      children: [
-        Positioned.fill(child: buildContent()),
-        Positioned(
-          top: 8,
-          right: 12,
-          child: IconButton(
-            tooltip: 'desktopLyrics'.tr(),
-            icon: Icon(
-              Symbols.lyrics,
-              size: 20,
-              color: overlayOn.value
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withValues(
-                      alpha: 0.5,
-                    ),
-            ),
-            onPressed: () async {
-              await DesktopLyricsManager.instance.toggle();
-              overlayOn.value = DesktopLyricsManager.instance.isEnabled;
-            },
-          ),
-        ),
-      ],
     );
   }
 
@@ -2060,25 +2022,6 @@ class _PlayerControls extends HookWidget {
           spacing: 8,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Shuffle
-            IconButton(
-              icon: StreamBuilder<bool>(
-                stream: player.stream.shuffle,
-                initialData: player.state.shuffle,
-                builder: (context, snapshot) {
-                  final shuffle = snapshot.data ?? false;
-                  return Icon(
-                    Symbols.shuffle,
-                    color: shuffle
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).disabledColor,
-                  );
-                },
-              ),
-              onPressed: () {
-                player.setShuffle(!player.state.shuffle);
-              },
-            ),
             // Previous
             IconButton(
               icon: const Icon(Symbols.skip_previous, size: 32),
@@ -2119,47 +2062,10 @@ class _PlayerControls extends HookWidget {
               icon: const Icon(Symbols.skip_next, size: 32),
               onPressed: player.next,
             ),
-            // Loop Mode
-            IconButton(
-              icon: StreamBuilder<PlaylistMode>(
-                stream: player.stream.playlistMode,
-                initialData: player.state.playlistMode,
-                builder: (context, snapshot) {
-                  final mode = snapshot.data ?? PlaylistMode.none;
-                  IconData icon;
-                  Color? color;
-                  switch (mode) {
-                    case PlaylistMode.none:
-                      icon = Symbols.repeat;
-                      color = Theme.of(context).disabledColor;
-                      break;
-                    case PlaylistMode.single:
-                      icon = Symbols.repeat_one;
-                      color = Theme.of(context).colorScheme.primary;
-                      break;
-                    case PlaylistMode.loop:
-                      icon = Symbols.repeat;
-                      color = Theme.of(context).colorScheme.primary;
-                      break;
-                  }
-                  return Icon(icon, color: color);
-                },
-              ),
-              onPressed: () {
-                final mode = player.state.playlistMode;
-                switch (mode) {
-                  case PlaylistMode.none:
-                    player.setPlaylistMode(PlaylistMode.single);
-                    break;
-                  case PlaylistMode.single:
-                    player.setPlaylistMode(PlaylistMode.loop);
-                    break;
-                  case PlaylistMode.loop:
-                    player.setPlaylistMode(PlaylistMode.none);
-                    break;
-                }
-              },
-            ),
+            // Desktop lyrics overlay toggle (next to the play mode button).
+            const _DesktopLyricsToggleButton(),
+            // Unified playback mode selector.
+            _PlayModeButton(player: player),
           ],
         ),
         const SizedBox(height: 16),
@@ -2594,4 +2500,137 @@ String _formatTimestamp(int milliseconds) {
   final millisecondsPart =
       (duration.inMilliseconds % 1000) ~/ 10; // Show centiseconds
   return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}.${millisecondsPart.toString().padLeft(2, '0')}';
+}
+
+/// Playback modes offered by [_PlayModeButton].
+enum _PlayMode {
+  sequential,
+  shuffle,
+  loopAll,
+  loopOne;
+
+  String get labelKey => switch (this) {
+    _PlayMode.sequential => 'playModeSequential',
+    _PlayMode.shuffle => 'playModeShuffle',
+    _PlayMode.loopAll => 'playModeLoopAll',
+    _PlayMode.loopOne => 'playModeLoopOne',
+  };
+
+  IconData get icon => switch (this) {
+    _PlayMode.sequential => Symbols.trending_flat,
+    _PlayMode.shuffle => Symbols.shuffle,
+    _PlayMode.loopAll => Symbols.repeat,
+    _PlayMode.loopOne => Symbols.repeat_one,
+  };
+
+  bool matches({required bool shuffle, required PlaylistMode mode}) =>
+      switch (this) {
+        _PlayMode.sequential => !shuffle && mode == PlaylistMode.none,
+        _PlayMode.shuffle => shuffle,
+        _PlayMode.loopAll => !shuffle && mode == PlaylistMode.loop,
+        _PlayMode.loopOne => !shuffle && mode == PlaylistMode.single,
+      };
+
+  void apply(Player player) {
+    player.setShuffle(this == _PlayMode.shuffle);
+    player.setPlaylistMode(switch (this) {
+      _PlayMode.sequential => PlaylistMode.none,
+      _PlayMode.shuffle => PlaylistMode.none,
+      _PlayMode.loopAll => PlaylistMode.loop,
+      _PlayMode.loopOne => PlaylistMode.single,
+    });
+  }
+}
+
+/// Single button that shows and switches the current playback mode
+/// (sequential / shuffle / repeat all / repeat one).
+class _PlayModeButton extends StatelessWidget {
+  final Player player;
+
+  const _PlayModeButton({required this.player});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_PlayMode>(
+      tooltip: 'playMode'.tr(),
+      onSelected: (mode) => mode.apply(player),
+      itemBuilder: (context) => _PlayMode.values.map((mode) {
+        return PopupMenuItem<_PlayMode>(
+          value: mode,
+          child: Row(
+            children: [
+              Icon(mode.icon, size: 18),
+              const SizedBox(width: 10),
+              Text(mode.labelKey.tr()),
+            ],
+          ),
+        );
+      }).toList(),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: StreamBuilder<PlaylistMode>(
+          stream: player.stream.playlistMode,
+          initialData: player.state.playlistMode,
+          builder: (context, modeSnapshot) {
+            final mode = modeSnapshot.data ?? PlaylistMode.none;
+            return StreamBuilder<bool>(
+              stream: player.stream.shuffle,
+              initialData: player.state.shuffle,
+              builder: (context, shuffleSnapshot) {
+                final shuffle = shuffleSnapshot.data ?? false;
+                final active =
+                    _PlayMode.values.firstWhere(
+                      (m) => m.matches(shuffle: shuffle, mode: mode),
+                      orElse: () => _PlayMode.sequential,
+                    );
+                return Tooltip(
+                  message: active.labelKey.tr(),
+                  child: Icon(
+                    active.icon,
+                    color: active == _PlayMode.sequential
+                        ? Theme.of(context).disabledColor
+                        : Theme.of(context).colorScheme.primary,
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// Toggles the desktop lyrics overlay window.
+class _DesktopLyricsToggleButton extends StatefulWidget {
+  const _DesktopLyricsToggleButton();
+
+  @override
+  State<_DesktopLyricsToggleButton> createState() =>
+      _DesktopLyricsToggleButtonState();
+}
+
+class _DesktopLyricsToggleButtonState
+    extends State<_DesktopLyricsToggleButton> {
+  late bool _on = DesktopLyricsManager.instance.isEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!DesktopLyricsManager.isSupported) {
+      return const SizedBox.shrink();
+    }
+    return IconButton(
+      tooltip: 'desktopLyrics'.tr(),
+      icon: Icon(
+        Symbols.lyrics,
+        color: _on
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).disabledColor,
+      ),
+      onPressed: () async {
+        await DesktopLyricsManager.instance.toggle();
+        if (mounted) setState(() => _on = DesktopLyricsManager.instance.isEnabled);
+      },
+    );
+  }
 }

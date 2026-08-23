@@ -169,5 +169,10 @@
   "up": "上移",
   "down": "下移",
   "done": "完成",
-  "desktopLyrics": "桌面歌词"
+  "desktopLyrics": "桌面歌词",
+  "playMode": "播放模式",
+  "playModeSequential": "顺序播放",
+  "playModeShuffle": "随机播放",
+  "playModeLoopAll": "列表循环",
+  "playModeLoopOne": "单曲循环"
 }

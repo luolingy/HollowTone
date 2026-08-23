@@ -32,7 +32,7 @@ class DesktopLyricsManager {
 
   WindowController? _overlay;
   String? _mainWindowId;
-  StreamSubscription<Duration>? _positionSub;
+  final List<StreamSubscription<dynamic>> _relaySubs = [];
   CurrentTrackData? Function()? _readTrack;
   Player? _player;
 
@@ -118,8 +118,10 @@ class DesktopLyricsManager {
     if (!_enabled) return;
     _enabled = false;
     SharedPreferences.getInstance().then((p) => p.setBool(_prefEnabled, false));
-    _positionSub?.cancel();
-    _positionSub = null;
+    for (final sub in _relaySubs) {
+      await sub.cancel();
+    }
+    _relaySubs.clear();
     try {
       await _overlay?.invokeMethod('close');
     } catch (_) {}
@@ -170,8 +172,15 @@ class DesktopLyricsManager {
   }
 
   void _startRelayIfNeeded() {
-    if (_positionSub != null || _player == null) return;
-    _positionSub = _player!.stream.position.listen((_) => _pushUpdate());
+    if (_relaySubs.isNotEmpty || _player == null) return;
+    // Push on every position tick and whenever the playlist changes so
+    // track switches update the overlay even while paused.
+    _relaySubs.add(
+      _player!.stream.position.listen((_) => _pushUpdate()),
+    );
+    _relaySubs.add(
+      _player!.stream.playlist.listen((_) => _pushUpdate(force: true)),
+    );
   }
 
   /// Computes the active lyric line and pushes an update when it changed.

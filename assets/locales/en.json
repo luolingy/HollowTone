@@ -168,5 +168,10 @@
   "up": "Move up",
   "down": "Move down",
   "done": "Done",
-  "desktopLyrics": "Desktop lyrics"
+  "desktopLyrics": "Desktop lyrics",
+  "playMode": "Playback mode",
+  "playModeSequential": "Sequential",
+  "playModeShuffle": "Shuffle",
+  "playModeLoopAll": "Repeat all",
+  "playModeLoopOne": "Repeat one"
 }

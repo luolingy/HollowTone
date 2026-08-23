@@ -87,28 +87,27 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
     return null;
   }
 
-  /// Finds this window's HWND by diffing the process' top-level windows
-  /// before/after the native window was spawned, applies layered styling and
-  /// restores the persisted frame - all while still hidden to avoid flashing
-  /// an unstyled window.
+  /// Locates this window's HWND via the dedicated window class used by
+  /// desktop_multi_window sub windows, applies layered styling and restores
+  /// the persisted frame - all while still hidden to avoid flashing an
+  /// unstyled window.
   Future<void> _setupNativeWindow() async {
-    final before = Win32WindowUtils.snapshotProcessWindows();
-    try {
-      await widget.controller.show();
-    } catch (_) {}
-    // The native view exists as soon as the engine starts; retry briefly in
-    // case enumeration races with window creation.
     int? hwnd;
-    for (int i = 0; i < 40 && hwnd == null; i++) {
-      final diff = Win32WindowUtils.snapshotProcessWindows().difference(before);
-      if (diff.isNotEmpty) hwnd = diff.first;
+    for (int i = 0; i < 80 && hwnd == null; i++) {
+      hwnd = Win32WindowUtils.findFirstWindowOfClass(
+        Win32WindowUtils.multiWindowClassName,
+      );
       if (hwnd == null) {
         await Future.delayed(const Duration(milliseconds: 25));
       }
     }
-    if (hwnd == null || !mounted) return;
+    if (hwnd == null) {
+      debugPrint('DesktopLyricsOverlay: native window not found');
+      return;
+    }
 
     _hwnd = hwnd;
+    debugPrint('DesktopLyricsOverlay: styling hwnd=$hwnd');
     Win32WindowUtils.styleAsLyricsOverlay(hwnd, alpha: 216);
     Win32WindowUtils.moveWindow(
       hwnd,
@@ -117,6 +116,9 @@ class _DesktopLyricsOverlayState extends State<DesktopLyricsOverlay> {
       width: _frame.width,
       height: _frame.height,
     );
+    try {
+      await widget.controller.show();
+    } catch (_) {}
     Win32WindowUtils.showWindow(hwnd, show: true);
 
     // Re-assert top-most periodically; other apps may steal the z-order.
