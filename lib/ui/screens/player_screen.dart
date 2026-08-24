@@ -1609,6 +1609,12 @@ class _FanLyricsView extends HookConsumerWidget {
     final releasedOnIndex = useRef(-1);
     final seenPlayingIndex = useRef(-1);
 
+    // High-frequency karaoke progress lives in a notifier so position ticks
+    // repaint ONLY the active line's fill instead of the whole fan.
+    final progressN = useMemoized(() => ValueNotifier<double>(0.0), []);
+    // Current line index drives layout; it changes far less often than ticks.
+    final currentIndexN = useState(0);
+
     void beginManualScroll() {
       releasedAt.value = null;
       userScrolling.value = true;
@@ -1630,259 +1636,268 @@ class _FanLyricsView extends HookConsumerWidget {
       markReleased();
     }
 
-    return StreamBuilder<Duration>(
-      stream: player.stream.position,
-      initialData: player.state.position,
-      builder: (context, snapshot) {
-        final positionMs =
-            (snapshot.data ?? Duration.zero).inMilliseconds +
-            track.lyricsOffset;
+    useEffect(() {
+      void applyPosition(Duration pos) {
+        final positionMs = pos.inMilliseconds + track.lyricsOffset;
         final total = lyrics.lines.length;
-        if (total == 0) {
-          return const SizedBox.shrink();
-        }
+        if (total == 0) return;
 
-        int currentIndex = 0;
+        int index = 0;
         for (int i = 0; i < total; i++) {
           if ((lyrics.lines[i].timeMs ?? 0) <= positionMs) {
-            currentIndex = i;
+            index = i;
           } else {
             break;
           }
         }
+
+        // Progress within the active line (karaoke fill).
+        final activeStart = lyrics.lines[index].timeMs ?? 0;
+        final activeEnd = index < total - 1
+            ? (lyrics.lines[index + 1].timeMs ?? activeStart)
+            : player.state.duration.inMilliseconds;
+        double p = 0.0;
+        if (activeEnd > activeStart) {
+          p = ((positionMs - activeStart) / (activeEnd - activeStart)).clamp(
+            0.0,
+            1.0,
+          );
+        }
+        progressN.value = p;
+
+        if (index == currentIndexN.value) return;
 
         // Detect playback advancing to a new line while the user is
         // browsing: hand control back only if it is still playing and the
         // arrival happened more than a second after release. While paused,
         // or before that, the view stays wherever the user left it.
         final wasSeen = seenPlayingIndex.value;
-        seenPlayingIndex.value = currentIndex;
+        seenPlayingIndex.value = index;
         if (userScrolling.value &&
             wasSeen >= 0 &&
-            currentIndex != wasSeen &&
+            index != wasSeen &&
             player.state.playing &&
             releasedAt.value != null &&
             DateTime.now().difference(releasedAt.value!).inMilliseconds >
                 1000) {
           releasedAt.value = null;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            userScrolling.value = false;
-            centerFraction.value = currentIndex.toDouble();
-          });
+          userScrolling.value = false;
+          centerFraction.value = index.toDouble();
         }
 
-        if (!userScrolling.value &&
-            centerFraction.value.round() != currentIndex) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            centerFraction.value = currentIndex.toDouble();
-          });
+        currentIndexN.value = index;
+        if (!userScrolling.value) {
+          centerFraction.value = index.toDouble();
         }
+      }
 
-        final viewCenter = centerFraction.value;
+      // Seed the current index immediately (e.g. after opening the screen).
+      applyPosition(player.state.position);
+      final sub = player.stream.position.listen(applyPosition);
+      return sub.cancel;
+    }, [track]);
 
-        double progress = 0.0;
-        final activeStart = lyrics.lines[currentIndex].timeMs ?? 0;
-        final activeEnd = currentIndex < total - 1
-            ? (lyrics.lines[currentIndex + 1].timeMs ?? activeStart)
-            : player.state.duration.inMilliseconds;
-        if (activeEnd > activeStart) {
-          progress = ((positionMs - activeStart) / (activeEnd - activeStart))
-              .clamp(0.0, 1.0);
-        }
+    final total = lyrics.lines.length;
+    if (total == 0) {
+      return const SizedBox.shrink();
+    }
+    final currentIndex = currentIndexN.value.clamp(0, total - 1);
+    final viewCenter = centerFraction.value;
 
-        // Render one extra faded ring beyond the visible window so rows
-        // slide in/out smoothly while scrolling.
-        final firstVisible = math.max(0, viewCenter.floor() - _half - 1);
-        final lastVisible = math.min(
-          total - 1,
-          viewCenter.ceil() + _half + 1,
+    // Render one extra faded ring beyond the visible window so rows
+    // slide in/out smoothly while scrolling.
+    final firstVisible = math.max(0, viewCenter.floor() - _half - 1);
+    final lastVisible = math.min(
+      total - 1,
+      viewCenter.ceil() + _half + 1,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final paneW = constraints.maxWidth;
+        final paneH = constraints.maxHeight;
+
+        // Virtual circle: its center sits to the left of the pane.
+        // Every visible line's center lies on the same radius, and each
+        // line is rotated by its own angular position so all lines stay
+        // tangent to the circle, forming a true fan/arc.
+        final lineWidth = math.max(
+          math.min(paneW * 0.68, 640.0),
+          math.min(paneW - 16.0, 220.0),
+        );
+        // Fan arc around a virtual pivot left of the pane: the current
+        // line's center anchors near 55% width, every other line keeps
+        // the same radius and rotates tangentially.
+        final pivot = Offset(-paneW * 0.20, paneH / 2);
+        final radius = math.max(paneW * 0.55 - pivot.dx, 420.0);
+        var anchorX = paneW * 0.55;
+        anchorX = anchorX.clamp(
+          lineWidth / 2 + 8,
+          math.max(lineWidth / 2 + 8, paneW - lineWidth / 2 - 8),
         );
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final paneW = constraints.maxWidth;
-            final paneH = constraints.maxHeight;
+        final theme = Theme.of(context);
+        final primaryColor = theme.colorScheme.primary;
 
-            // Virtual circle: its center sits to the left of the pane.
-            // Every visible line's center lies on the same radius, and each
-            // line is rotated by its own angular position so all lines stay
-            // tangent to the circle, forming a true fan/arc.
-            final lineWidth = math.max(
-              math.min(paneW * 0.68, 640.0),
-              math.min(paneW - 16.0, 220.0),
-            );
-            // Fan arc around a virtual pivot left of the pane: the current
-            // line's center anchors near 55% width, every other line keeps
-            // the same radius and rotates tangentially.
-            final pivot = Offset(-paneW * 0.20, paneH / 2);
-            final radius = math.max(paneW * 0.55 - pivot.dx, 420.0);
-            var anchorX = paneW * 0.55;
-            anchorX = anchorX.clamp(
-              lineWidth / 2 + 8,
-              math.max(lineWidth / 2 + 8, paneW - lineWidth / 2 - 8),
-            );
+        Widget buildLine(int i) {
+          final line = lyrics.lines[i];
+          // Fractional distance from the viewport center keeps position,
+          // rotation and opacity continuous during manual scrolling.
+          final signedDist = i - viewCenter;
+          final dist = signedDist.abs();
+          final isActiveLine = i == currentIndex;
+          final t = (dist / _half).clamp(0.0, 1.4);
 
-            Widget buildLine(int i) {
-              final line = lyrics.lines[i];
-              // Fractional distance from the viewport center keeps position,
-              // rotation and opacity continuous during manual scrolling.
-              final signedDist = i - viewCenter;
-              final dist = signedDist.abs();
-              final isActiveLine = i == currentIndex;
-              final t = (dist / _half).clamp(0.0, 1.4);
+          double opacity;
+          if (dist > _half + 1) {
+            // Extra ring outside the visible window: fully transparent
+            // so entering/exiting rows fade instead of popping.
+            opacity = 0.0;
+          } else if (dist > _half) {
+            opacity = 0.25 * (_half + 1 - dist);
+          } else {
+            opacity = math.max(0.25, 1.0 - t * 0.6);
+          }
+          final textAlpha = math.max(0.4, 0.85 - t * 0.45);
+          final dimColor = theme.colorScheme.onSurface.withValues(
+            alpha: textAlpha,
+          );
 
-              double opacity;
-              if (dist > _half + 1) {
-                // Extra ring outside the visible window: fully transparent
-                // so entering/exiting rows fade instead of popping.
-                opacity = 0.0;
-              } else if (dist > _half) {
-                opacity = 0.25 * (_half + 1 - dist);
-              } else {
-                opacity = math.max(0.25, 1.0 - t * 0.6);
-              }
-              final textAlpha = math.max(0.4, 0.85 - t * 0.45);
+          Widget lineChild = Text(
+            line.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+          );
 
-              final theme = Theme.of(context);
-              final dimColor = theme.colorScheme.onSurface.withValues(
-                alpha: textAlpha,
-              );
-
-              Widget lineChild = Text(
-                line.text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-              );
-
-              if (isActiveLine && progress > 0.0 && progress < 1.0) {
-                lineChild = ShaderMask(
-                  shaderCallback: (bounds) =>
-                      LinearGradient(
-                        colors: [theme.colorScheme.primary, dimColor],
-                        stops: [progress, progress],
-                      ).createShader(bounds),
-                  child: Text(
-                    line.text,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                  ),
+          if (isActiveLine) {
+            // Only this tiny subtree rebuilds on every position tick.
+            lineChild = ValueListenableBuilder<double>(
+              valueListenable: progressN,
+              builder: (context, progress, child) {
+                if (progress <= 0.0 || progress >= 1.0) return child!;
+                return ShaderMask(
+                  shaderCallback: (bounds) => LinearGradient(
+                    colors: [primaryColor, dimColor],
+                    stops: [progress, progress],
+                  ).createShader(bounds),
+                  child: child!,
                 );
-              }
+              },
+              child: lineChild,
+            );
+          }
 
-              return Align(
-                alignment: Alignment.topLeft,
-                child: AnimatedOpacity(
-                  opacity: opacity,
-                  duration: _animDuration,
-                  curve: _animCurve,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween(
-                      end: math.asin((signedDist * _itemExtent / radius)
-                          .clamp(-1.0, 1.0)),
+          return Align(
+            alignment: Alignment.topLeft,
+            child: AnimatedOpacity(
+              opacity: opacity,
+              duration: _animDuration,
+              curve: _animCurve,
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(
+                  end: math.asin((signedDist * _itemExtent / radius)
+                      .clamp(-1.0, 1.0)),
+                ),
+                duration: _animDuration,
+                curve: _animCurve,
+                builder: (context, theta, child) {
+                  // Center of this line on the shared circle; rotating
+                  // the line by theta about its own center equals
+                  // rotating it rigidly about the virtual pivot.
+                  final center = Offset(
+                    pivot.dx + radius * math.cos(theta),
+                    pivot.dy + radius * math.sin(theta),
+                  );
+                  return Transform.translate(
+                    offset: Offset(
+                      center.dx - lineWidth / 2,
+                      center.dy - _itemExtent / 2,
                     ),
-                    duration: _animDuration,
-                    curve: _animCurve,
-                    builder: (context, theta, child) {
-                      // Center of this line on the shared circle; rotating
-                      // the line by theta about its own center equals
-                      // rotating it rigidly about the virtual pivot.
-                      final center = Offset(
-                        pivot.dx + radius * math.cos(theta),
-                        pivot.dy + radius * math.sin(theta),
-                      );
-                      return Transform.translate(
-                        offset: Offset(
-                          center.dx - lineWidth / 2,
-                          center.dy - _itemExtent / 2,
+                    child: Transform.rotate(
+                      angle: theta,
+                      alignment: Alignment.center,
+                      child: child,
+                    ),
+                  );
+                },
+                child: InkWell(
+                  onTap: () {
+                    if (line.timeMs != null) {
+                      player.seek(Duration(milliseconds: line.timeMs!));
+                    }
+                  },
+                  child: SizedBox(
+                    width: lineWidth,
+                    height: _itemExtent,
+                    child: Center(
+                      child: AnimatedDefaultTextStyle(
+                        duration: _animDuration,
+                        curve: _animCurve,
+                        style: theme.textTheme.bodyLarge!.copyWith(
+                          fontSize: isActiveLine ? 19 : 16,
+                          fontWeight: isActiveLine
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          color: isActiveLine
+                              ? primaryColor
+                              : dimColor,
                         ),
-                        child: Transform.rotate(
-                          angle: theta,
-                          alignment: Alignment.center,
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: InkWell(
-                      onTap: () {
-                        if (line.timeMs != null) {
-                          player.seek(Duration(milliseconds: line.timeMs!));
-                        }
-                      },
-                      child: SizedBox(
-                        width: lineWidth,
-                        height: _itemExtent,
-                        child: Center(
-                          child: AnimatedDefaultTextStyle(
-                            duration: _animDuration,
-                            curve: _animCurve,
-                            style: theme.textTheme.bodyLarge!.copyWith(
-                              fontSize: isActiveLine ? 19 : 16,
-                              fontWeight: isActiveLine
-                                  ? FontWeight.bold
-                                  : FontWeight.normal,
-                              color: isActiveLine
-                                  ? theme.colorScheme.primary
-                                  : dimColor,
-                            ),
-                            child: lineChild,
-                          ),
-                        ),
+                        child: lineChild,
                       ),
                     ),
                   ),
                 ),
-              );
+              ),
+            ),
+          );
+        }
+
+        final visibleLines = <Widget>[
+          const Positioned.fill(
+            child: ColoredBox(color: Colors.transparent),
+          ),
+          for (int i = firstVisible; i <= lastVisible; i++)
+            KeyedSubtree(
+              key: ValueKey('fan-line-$i'),
+              child: buildLine(i),
+            ),
+        ];
+
+        return GestureDetector(
+          onVerticalDragStart: (_) => beginManualScroll(),
+          onVerticalDragUpdate: (details) {
+            var next =
+                centerFraction.value - details.delta.dy / _itemExtent;
+            if (next < 0) next = 0;
+            if (next >= lyrics.lines.length) {
+              next = lyrics.lines.length - 1.0;
             }
-
-            final visibleLines = <Widget>[
-              const Positioned.fill(
-                child: ColoredBox(color: Colors.transparent),
-              ),
-              for (int i = firstVisible; i <= lastVisible; i++)
-                KeyedSubtree(
-                  key: ValueKey('fan-line-$i'),
-                  child: buildLine(i),
-                ),
-            ];
-
-            return GestureDetector(
-              onVerticalDragStart: (_) => beginManualScroll(),
-              onVerticalDragUpdate: (details) {
-                var next =
-                    centerFraction.value - details.delta.dy / _itemExtent;
-                if (next < 0) next = 0;
-                if (next >= lyrics.lines.length) {
-                  next = lyrics.lines.length - 1.0;
-                }
-                centerFraction.value = next;
-              },
-              onVerticalDragEnd: (_) {
-                // Snap to the nearest whole line; auto-tracking resumes
-                // later per the release rules above.
-                var snapped = centerFraction.value.round();
-                if (snapped < 0) snapped = 0;
-                if (snapped >= lyrics.lines.length) {
-                  snapped = lyrics.lines.length - 1;
-                }
-                centerFraction.value = snapped.toDouble();
-                markReleased();
-              },
-              child: Listener(
-                onPointerSignal: (event) {
-                  if (event is PointerScrollEvent) {
-                    if (event.scrollDelta.dy > 10) {
-                      step(1);
-                    } else if (event.scrollDelta.dy < -10) {
-                      step(-1);
-                    }
-                  }
-                },
-                child: ClipRect(child: Stack(children: visibleLines)),
-              ),
-            );
+            centerFraction.value = next;
           },
+          onVerticalDragEnd: (_) {
+            // Snap to the nearest whole line; auto-tracking resumes
+            // later per the release rules above.
+            var snapped = centerFraction.value.round();
+            if (snapped < 0) snapped = 0;
+            if (snapped >= lyrics.lines.length) {
+              snapped = lyrics.lines.length - 1;
+            }
+            centerFraction.value = snapped.toDouble();
+            markReleased();
+          },
+          child: Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                if (event.scrollDelta.dy > 10) {
+                  step(1);
+                } else if (event.scrollDelta.dy < -10) {
+                  step(-1);
+                }
+              }
+            },
+            child: ClipRect(child: Stack(children: visibleLines)),
+          ),
         );
       },
     );
@@ -1916,54 +1931,86 @@ class _TimedLyricsView extends HookConsumerWidget {
 
     final listController = useMemoized(() => ListController(), []);
     final scrollController = useScrollController();
-    final previousIndex = useState(-1);
 
     // Use track directly to access lyrics offset
     final lyricsOffset = track.lyricsOffset;
 
-    return StreamBuilder<Duration>(
-      stream: player.stream.position,
-      initialData: player.state.position,
-      builder: (context, snapshot) {
-        final position = snapshot.data ?? Duration.zero;
-        final positionMs = position.inMilliseconds + lyricsOffset;
+    // Position ticks land in a listener and only touch notifiers; the view
+    // itself rebuilds solely when the active line changes.
+    final currentIndexN = useState(0);
+    final progressN = useMemoized(() => ValueNotifier<double>(0.0), []);
 
-        // Find current line index
-        int currentIndex = 0;
-        for (int i = 0; i < lyrics.lines.length; i++) {
+    useEffect(() {
+      void animateToIndex(int index) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          try {
+            listController.animateToItem(
+              index: index,
+              scrollController: scrollController,
+              alignment: 0.5,
+              duration: (_) => const Duration(milliseconds: 300),
+              curve: (_) => Curves.easeOutCubic,
+            );
+          } on AssertionError catch (e) {
+            // The list can be disposed/reattached between scheduling the
+            // frame callback and this call (e.g. when leaving the screen).
+            debugPrint('Lyrics auto-scroll skipped: $e');
+          }
+        });
+      }
+
+      void applyPosition(Duration pos) {
+        final positionMs = pos.inMilliseconds + lyricsOffset;
+        final total = lyrics.lines.length;
+        if (total == 0) return;
+
+        int index = 0;
+        for (int i = 0; i < total; i++) {
           if ((lyrics.lines[i].timeMs ?? 0) <= positionMs) {
-            currentIndex = i;
+            index = i;
           } else {
             break;
           }
         }
 
-        // Auto-scroll when current line changes
-        if (currentIndex != previousIndex.value) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            previousIndex.value = currentIndex;
-            try {
-              listController.animateToItem(
-                index: currentIndex,
-                scrollController: scrollController,
-                alignment: 0.5,
-                duration: (_) => const Duration(milliseconds: 300),
-                curve: (_) => Curves.easeOutCubic,
-              );
-            } on AssertionError catch (e) {
-              // The list can be disposed/reattached between scheduling the
-              // frame callback and this call (e.g. when leaving the screen).
-              debugPrint('Lyrics auto-scroll skipped: $e');
-            }
-          });
+        // Karaoke progress within the active line.
+        final activeStart = lyrics.lines[index].timeMs ?? 0;
+        final activeEnd = index < total - 1
+            ? (lyrics.lines[index + 1].timeMs ?? activeStart)
+            : player.state.duration.inMilliseconds;
+        double p = 0.0;
+        if (activeEnd > activeStart) {
+          p = ((positionMs - activeStart) / (activeEnd - activeStart)).clamp(
+            0.0,
+            1.0,
+          );
         }
+        progressN.value = p;
 
-        final totalDurationMs = player.state.duration.inMilliseconds;
-
-        if (useCurvedStyle) {
-          return _FanLyricsView(lyrics: lyrics, player: player, track: track);
+        if (index != currentIndexN.value) {
+          currentIndexN.value = index;
+          animateToIndex(index);
         }
+      }
 
+      applyPosition(player.state.position);
+      final sub = player.stream.position.listen(applyPosition);
+      return sub.cancel;
+    }, [track]);
+
+    final total = lyrics.lines.length;
+    if (total == 0) {
+      return const SizedBox.shrink();
+    }
+    final currentIndex = currentIndexN.value.clamp(0, total - 1);
+
+    if (useCurvedStyle) {
+      return _FanLyricsView(lyrics: lyrics, player: player, track: track);
+    }
+
+    return ValueListenableBuilder<double>(
+      valueListenable: progressN,
+      builder: (context, progress, _) {
         return SuperListView.builder(
           padding: EdgeInsets.only(
             top: 0.25 * MediaQuery.sizeOf(context).height,
@@ -1975,19 +2022,6 @@ class _TimedLyricsView extends HookConsumerWidget {
           itemBuilder: (context, index) {
             final line = lyrics.lines[index];
             final isActive = index == currentIndex;
-
-            // Calculate progress within the current line for fill effect
-            double progress = 0.0;
-            if (isActive) {
-              final startTime = line.timeMs ?? 0;
-              final endTime = index < lyrics.lines.length - 1
-                  ? (lyrics.lines[index + 1].timeMs ?? startTime)
-                  : totalDurationMs;
-              if (endTime > startTime) {
-                progress = ((positionMs - startTime) / (endTime - startTime))
-                    .clamp(0.0, 1.0);
-              }
-            }
 
             return InkWell(
               onTap: () {
