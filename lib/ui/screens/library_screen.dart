@@ -1,6 +1,7 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
@@ -9,8 +10,10 @@ import 'package:groovybox/data/playlist_repository.dart';
 import 'package:groovybox/data/track_repository.dart';
 
 import 'package:groovybox/logic/lyrics_parser.dart';
+import 'package:groovybox/logic/online_metadata_service.dart';
 import 'package:groovybox/logic/window_helpers.dart';
 import 'package:groovybox/providers/audio_provider.dart';
+import 'package:groovybox/providers/settings_provider.dart';
 import 'package:groovybox/providers/watch_folder_provider.dart';
 import 'package:groovybox/router.dart';
 import 'package:groovybox/ui/tabs/albums_tab.dart';
@@ -765,6 +768,14 @@ class LibraryScreen extends HookConsumerWidget {
                 },
               ),
               ListTile(
+                leading: const Icon(Symbols.travel_explore),
+                title: Text('onlineMatch'.tr()),
+                onTap: () {
+                  Navigator.pop(context);
+                  _onlineMatchTrack(context, ref, track);
+                },
+              ),
+              ListTile(
                 leading: const Icon(Symbols.lyrics),
                 title: Text('importLyrics'.tr()),
                 onTap: () {
@@ -992,6 +1003,152 @@ class LibraryScreen extends HookConsumerWidget {
         SnackBar(content: Text('errorUpdatingCover'.tr(args: [e.toString()]))),
       );
     }
+  }
+
+  /// Searches the configured online channel (NetEase / QQ Music) and lets
+  /// the user apply metadata, cover art and lyrics to [track].
+  Future<void> _onlineMatchTrack(
+    BuildContext context,
+    WidgetRef ref,
+    Track track,
+  ) async {
+    final channel = ref.read(metadataChannelProvider);
+    final impl = metadataChannelImpl(
+      channel == MetadataChannel.qq
+          ? OnlineChannel.qq
+          : OnlineChannel.netease,
+    );
+
+    final match = await showDialog<OnlineMatch>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('onlineMatch'.tr()),
+          content: SizedBox(
+            width: 420,
+            height: 320,
+            child: FutureBuilder<List<OnlineMatch>>(
+              future: impl.search(track.title, artist: track.artist),
+              builder: (innerContext, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const Gap(12),
+                        Text('onlineSearching'.tr()),
+                      ],
+                    ),
+                  );
+                }
+                final results = snapshot.data ?? const <OnlineMatch>[];
+                if (results.isEmpty) {
+                  return Center(child: Text('noOnlineResults'.tr()));
+                }
+                return ListView.builder(
+                  itemCount: results.length,
+                  itemBuilder: (itemContext, index) {
+                    final item = results[index];
+                    return ListTile(
+                      dense: true,
+                      title: Text(item.title),
+                      subtitle: Text(
+                        '${item.artist}${item.album == null ? '' : ' - ${item.album}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => Navigator.pop(dialogContext, item),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: Text('cancel'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+    if (match == null || !context.mounted) return;
+
+    // Choose what to apply.
+    var fillInfo = track.artist == null || track.artist!.trim().isEmpty;
+    var downloadCover = true;
+    var replaceLyrics = false;
+    String? lyricText;
+    Uint8List? coverBytes;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              title: Text(match.title),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CheckboxListTile(
+                    value: fillInfo,
+                    onChanged: (v) =>
+                        setDialogState(() => fillInfo = v ?? false),
+                    title: Text('matchApplyInfo'.tr()),
+                  ),
+                  CheckboxListTile(
+                    value: downloadCover,
+                    onChanged: (v) =>
+                        setDialogState(() => downloadCover = v ?? false),
+                    title: Text('matchDownloadCover'.tr()),
+                  ),
+                  CheckboxListTile(
+                    value: replaceLyrics,
+                    onChanged: (v) =>
+                        setDialogState(() => replaceLyrics = v ?? false),
+                    title: Text('matchReplaceLyrics'.tr()),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: Text('cancel'.tr()),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: Text('apply'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    if (confirmed != true || !context.mounted) return;
+    if (replaceLyrics) lyricText = await impl.fetchLyric(match.songId);
+    if (!context.mounted) return;
+    if (downloadCover) coverBytes = await impl.downloadCover(match.songId);
+
+    await ref
+        .read(trackRepositoryProvider.notifier)
+        .applyOnlineMatch(
+          trackId: track.id,
+          match: match,
+          coverBytes: coverBytes,
+          lyrics: lyricText,
+          fillInfo: fillInfo,
+          downloadCover: downloadCover && coverBytes != null,
+          replaceLyrics: replaceLyrics,
+        );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('onlineMatchDone'.tr())),
+    );
   }
 
   void _showEditDialog(BuildContext context, WidgetRef ref, Track track) {

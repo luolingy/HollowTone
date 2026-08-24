@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:groovybox/data/db.dart';
 import 'package:groovybox/logic/metadata_service.dart';
+import 'package:groovybox/logic/online_metadata_service.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/db_provider.dart';
 import 'package:groovybox/providers/settings_provider.dart';
@@ -277,6 +278,73 @@ class TrackRepository extends _$TrackRepository {
           durationMs: metadata?.durationMs,
         ),
       );
+    }
+  }
+
+  /// Applies an online match (from NetEase / QQ Music) to [trackId]:
+  /// optionally fills missing metadata fields, downloads the cover and/or
+  /// replaces the stored lyrics.
+  Future<void> applyOnlineMatch({
+    required int trackId,
+    OnlineMatch? match,
+    Uint8List? coverBytes,
+    String? lyrics,
+    required bool fillInfo,
+    required bool downloadCover,
+    required bool replaceLyrics,
+  }) async {
+    final db = ref.read(databaseProvider);
+    final track = await (db.select(
+      db.tracks,
+    )..where((t) => t.id.equals(trackId))).getSingleOrNull();
+    if (track == null) return;
+
+    // 1. Fill metadata fields that are currently empty only.
+    if (fillInfo && match != null) {
+      final needsArtist =
+          track.artist == null || track.artist!.trim().isEmpty;
+      final needsAlbum = track.album == null || track.album!.trim().isEmpty;
+      final needsDuration = track.duration == null && match.durationMs != null;
+      if (needsArtist || needsAlbum || needsDuration) {
+        await (db.update(
+          db.tracks,
+        )..where((t) => t.id.equals(track.id))).write(
+          TracksCompanion(
+            artist: needsArtist
+                ? Value(match.artist.isEmpty ? null : match.artist)
+                : const Value.absent(),
+            album: needsAlbum
+                ? Value(match.album?.isEmpty ?? true ? null : match.album)
+                : const Value.absent(),
+            duration: needsDuration
+                ? Value(match.durationMs)
+                : const Value.absent(),
+          ),
+        );
+      }
+    }
+
+    // 2. Cover art (updateTrackCover also refreshes the playing state).
+    if (downloadCover && coverBytes != null) {
+      await updateTrackCover(trackId, coverBytes);
+    }
+
+    // 3. Lyrics.
+    if (replaceLyrics && lyrics != null && lyrics.trim().isNotEmpty) {
+      await updateLyrics(trackId, lyrics);
+    }
+
+    // Refresh the playing track entry so UI reflects new info immediately.
+    if (fillInfo || replaceLyrics) {
+      final fresh = await (db.select(
+        db.tracks,
+      )..where((t) => t.id.equals(trackId))).getSingleOrNull();
+      final current = ref.read(currentTrackProvider);
+      if (fresh != null && current != null && current.id == trackId) {
+        ref.read(currentTrackProvider.notifier).setTrack(
+              CurrentTrackData.fromTrack(fresh),
+            );
+      }
     }
   }
 

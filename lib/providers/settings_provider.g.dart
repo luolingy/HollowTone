@@ -33,7 +33,7 @@ final class SettingsNotifierProvider
   SettingsNotifier create() => SettingsNotifier();
 }
 
-String _$settingsNotifierHash() => r'6825709a9c6ccdb5b2402aac1c75d742f5344527';
+String _$settingsNotifierHash() => r'5bc9e8d0d32a4eef38dee5ba9bf9064f7d627473';
 
 abstract class _$SettingsNotifier extends $AsyncNotifier<SettingsState> {
   FutureOr<SettingsState> build();
@@ -365,6 +365,59 @@ abstract class _$ContinuePlaysNotifier extends $Notifier<bool> {
             as $ClassProviderElement<
               AnyNotifier<bool, bool>,
               bool,
+              Object?,
+              Object?
+            >;
+    element.handleCreate(ref, build);
+  }
+}
+
+@ProviderFor(MetadataChannelNotifier)
+final metadataChannelProvider = MetadataChannelNotifierProvider._();
+
+final class MetadataChannelNotifierProvider
+    extends $NotifierProvider<MetadataChannelNotifier, MetadataChannel> {
+  MetadataChannelNotifierProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'metadataChannelProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$metadataChannelNotifierHash();
+
+  @$internal
+  @override
+  MetadataChannelNotifier create() => MetadataChannelNotifier();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(MetadataChannel value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<MetadataChannel>(value),
+    );
+  }
+}
+
+String _$metadataChannelNotifierHash() =>
+    r'60c6f634c07e20a541c1d84c2ad0a9627b71bb66';
+
+abstract class _$MetadataChannelNotifier extends $Notifier<MetadataChannel> {
+  MetadataChannel build();
+  @$mustCallSuper
+  @override
+  void runBuild() {
+    final ref = this.ref as $Ref<MetadataChannel, MetadataChannel>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<MetadataChannel, MetadataChannel>,
+              MetadataChannel,
               Object?,
               Object?
             >;

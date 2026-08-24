@@ -381,6 +381,32 @@ class SettingsScreen extends HookConsumerWidget {
                           ),
                         ),
                         ListTile(
+                          title: Text('metadataChannel'.tr()),
+                          subtitle: Text('metadataChannelDesc'.tr()),
+                          trailing: DropdownButtonHideUnderline(
+                            child: DropdownButton<MetadataChannel>(
+                              value: settings.metadataChannel,
+                              onChanged: (MetadataChannel? value) {
+                                if (value != null) {
+                                  ref
+                                      .read(metadataChannelProvider.notifier)
+                                      .update(value);
+                                }
+                              },
+                              items: MetadataChannel.values.map((channel) {
+                                return DropdownMenuItem(
+                                  value: channel,
+                                  child: Text(
+                                    channel == MetadataChannel.netease
+                                        ? 'channelNetease'.tr()
+                                        : 'channelQq'.tr(),
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                          ),
+                        ),
+                        ListTile(
                           title: Text('themeMode'.tr()),
                           subtitle: Text('themeModeDescription'.tr()),
                           trailing: DropdownButtonHideUnderline(

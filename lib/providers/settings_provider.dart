@@ -33,12 +33,21 @@ enum LyricsMode {
   final String displayName;
 }
 
+enum MetadataChannel {
+  netease('NetEase'),
+  qq('QQ Music');
+
+  const MetadataChannel(this.displayName);
+  final String displayName;
+}
+
 class SettingsState {
   final ImportMode importMode;
   final bool autoScan;
   final bool watchForChanges;
   final DefaultPlayerScreen defaultPlayerScreen;
   final LyricsMode lyricsMode;
+  final MetadataChannel metadataChannel;
   final bool continuePlays;
   final ThemeMode themeMode;
   final Set<String> supportedFormats;
@@ -50,6 +59,7 @@ class SettingsState {
     this.watchForChanges = true,
     this.defaultPlayerScreen = DefaultPlayerScreen.cover,
     this.lyricsMode = LyricsMode.auto,
+    this.metadataChannel = MetadataChannel.netease,
     this.continuePlays = false,
     this.themeMode = ThemeMode.system,
     this.supportedFormats = const {
@@ -71,6 +81,7 @@ class SettingsState {
     bool? watchForChanges,
     DefaultPlayerScreen? defaultPlayerScreen,
     LyricsMode? lyricsMode,
+    MetadataChannel? metadataChannel,
     bool? continuePlays,
     ThemeMode? themeMode,
     Set<String>? supportedFormats,
@@ -82,6 +93,7 @@ class SettingsState {
       watchForChanges: watchForChanges ?? this.watchForChanges,
       defaultPlayerScreen: defaultPlayerScreen ?? this.defaultPlayerScreen,
       lyricsMode: lyricsMode ?? this.lyricsMode,
+      metadataChannel: metadataChannel ?? this.metadataChannel,
       continuePlays: continuePlays ?? this.continuePlays,
       themeMode: themeMode ?? this.themeMode,
       supportedFormats: supportedFormats ?? this.supportedFormats,
@@ -97,6 +109,7 @@ class SettingsNotifier extends _$SettingsNotifier {
   static const String _watchForChangesKey = 'watch_for_changes';
   static const String _defaultPlayerScreenKey = 'default_player_screen';
   static const String _lyricsModeKey = 'lyrics_mode';
+  static const String _metadataChannelKey = 'metadata_channel';
   static const String _continuePlaysKey = 'continue_plays';
   static const String _themeModeKey = 'theme_mode';
   static const String _windowWidthKey = 'window_width';
@@ -119,6 +132,14 @@ class SettingsNotifier extends _$SettingsNotifier {
     final lyricsModeIndex =
         prefs.getInt(_lyricsModeKey) ?? 2; // Auto is default
     final lyricsMode = LyricsMode.values[lyricsModeIndex];
+
+    final metadataChannelIndex =
+        prefs.getInt(_metadataChannelKey) ?? 0; // NetEase is default
+    final metadataChannel =
+        MetadataChannel.values.firstWhere(
+          (c) => c.index == metadataChannelIndex,
+          orElse: () => MetadataChannel.netease,
+        );
 
     final continuePlays = prefs.getBool(_continuePlaysKey) ?? false;
 
@@ -144,6 +165,7 @@ class SettingsNotifier extends _$SettingsNotifier {
       watchForChanges: watchForChanges,
       defaultPlayerScreen: defaultPlayerScreen,
       lyricsMode: lyricsMode,
+      metadataChannel: metadataChannel,
       continuePlays: continuePlays,
       themeMode: themeMode,
       windowSize: windowSize,
@@ -194,6 +216,15 @@ class SettingsNotifier extends _$SettingsNotifier {
 
     if (state.hasValue) {
       state = AsyncValue.data(state.value!.copyWith(lyricsMode: mode));
+    }
+  }
+
+  Future<void> setMetadataChannel(MetadataChannel channel) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_metadataChannelKey, channel.index);
+
+    if (state.hasValue) {
+      state = AsyncValue.data(state.value!.copyWith(metadataChannel: channel));
     }
   }
 
@@ -332,5 +363,23 @@ class ContinuePlaysNotifier extends _$ContinuePlaysNotifier {
 
   Future<void> update(bool enabled) async {
     await ref.read(settingsProvider.notifier).setContinuePlays(enabled);
+  }
+}
+
+@riverpod
+class MetadataChannelNotifier extends _$MetadataChannelNotifier {
+  @override
+  MetadataChannel build() {
+    return ref
+        .watch(settingsProvider)
+        .when(
+          data: (settings) => settings.metadataChannel,
+          loading: () => MetadataChannel.netease,
+          error: (_, _) => MetadataChannel.netease,
+        );
+  }
+
+  Future<void> update(MetadataChannel channel) async {
+    await ref.read(settingsProvider.notifier).setMetadataChannel(channel);
   }
 }
