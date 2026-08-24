@@ -189,5 +189,6 @@
   "matchApplyInfo": "Fill missing info",
   "matchDownloadCover": "Download cover",
   "matchReplaceLyrics": "Replace lyrics",
-  "onlineMatchDone": "Online match applied"
+  "onlineMatchDone": "Online match applied",
+  "pickFromSongList": "Pick from song list"
 }

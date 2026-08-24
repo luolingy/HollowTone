@@ -190,5 +190,6 @@
   "matchApplyInfo": "补充缺失信息",
   "matchDownloadCover": "下载封面",
   "matchReplaceLyrics": "替换歌词",
-  "onlineMatchDone": "已应用在线匹配信息"
+  "onlineMatchDone": "已应用在线匹配信息",
+  "pickFromSongList": "从歌曲列表选择"
 }

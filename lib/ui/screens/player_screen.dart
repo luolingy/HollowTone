@@ -17,11 +17,12 @@ import 'package:groovybox/data/track_repository.dart';
 import 'package:groovybox/logic/lrc_providers.dart';
 import 'package:groovybox/logic/lyrics_parser.dart';
 import 'package:groovybox/logic/metadata_service.dart';
+import 'package:groovybox/logic/online_metadata_service.dart';
 import 'package:groovybox/logic/window_helpers.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/db_provider.dart';
-import 'package:groovybox/providers/lrc_fetcher_provider.dart';
 import 'package:groovybox/providers/settings_provider.dart';
+import 'package:groovybox/providers/lrc_fetcher_provider.dart';
 import 'package:groovybox/ui/widgets/mini_player.dart';
 import 'package:groovybox/ui/widgets/track_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -785,6 +786,23 @@ class _FetchLyricsDialog extends StatelessWidget {
                 ),
                 ListTile(
                   dense: true,
+                  leading: const Icon(Symbols.travel_explore),
+                  title: Text('pickFromSongList'.tr()),
+                  subtitle: Text(
+                    ref.read(metadataChannelProvider) == MetadataChannel.qq
+                        ? 'channelQq'.tr()
+                        : 'channelNetease'.tr(),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
+                  ),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    await _pickLyricsFromSongList(context, track);
+                  },
+                ),
+                ListTile(
+                  dense: true,
                   leading: const Icon(Symbols.file_upload),
                   title: Text('manualImport'.tr()),
                   shape: RoundedRectangleBorder(
@@ -806,6 +824,98 @@ class _FetchLyricsDialog extends StatelessWidget {
           child: Text('cancel'.tr()),
         ),
       ],
+    );
+  }
+
+  /// Song-list picker over the configured online channel; applies ONLY the
+  /// lyrics of the chosen song.
+  Future<void> _pickLyricsFromSongList(
+    BuildContext context,
+    db.Track track,
+  ) async {
+    final channel = ref.read(metadataChannelProvider);
+    final impl = metadataChannelImpl(
+      channel == MetadataChannel.qq ? OnlineChannel.qq : OnlineChannel.netease,
+    );
+
+    final match = await showDialog<OnlineMatch>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('pickFromSongList'.tr()),
+          content: SizedBox(
+            width: 420,
+            height: 320,
+            child: FutureBuilder<List<OnlineMatch>>(
+              future: impl.search(track.title, artist: track.artist),
+              builder: (innerContext, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        const Gap(12),
+                        Text('onlineSearching'.tr()),
+                      ],
+                    ),
+                  );
+                }
+                final results = snapshot.data ?? const <OnlineMatch>[];
+                if (results.isEmpty) {
+                  return Center(child: Text('noOnlineResults'.tr()));
+                }
+                return ListView.builder(
+                  itemCount: results.length,
+                  itemBuilder: (itemContext, index) {
+                    final item = results[index];
+                    return ListTile(
+                      dense: true,
+                      title: Text(item.title),
+                      subtitle: Text(
+                        '${item.artist}${item.album == null ? '' : ' - ${item.album}'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => Navigator.pop(dialogContext, item),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, null),
+              child: Text('cancel'.tr()),
+            ),
+          ],
+        );
+      },
+    );
+    if (match == null || !context.mounted) return;
+
+    final lrc = await impl.fetchLyric(match.songId);
+    if (!context.mounted) return;
+    if (lrc == null || lrc.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('noOnlineResults'.tr())),
+      );
+      return;
+    }
+
+    final lyricsData = LyricsParser.parse(lrc, '${match.title}.lrc');
+    await ref
+        .read(trackRepositoryProvider.notifier)
+        .updateLyrics(track.id, lyricsData.toJsonString());
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'importedLyricsLines'.tr(args: [match.title, '${lyricsData.lines.length}']),
+        ),
+      ),
     );
   }
 
