@@ -82,25 +82,32 @@ class PlayerScreen extends HookConsumerWidget {
         final artBytes = currentMetadata?.artBytes;
         if (artBytes != null) {
           background = Positioned.fill(
-            child: Stack(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: MemoryImage(artBytes),
-                      fit: BoxFit.cover,
+            child: RepaintBoundary(
+              child: Stack(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        // Heavily blurred anyway - decode a small version.
+                        image: ResizeImage(
+                          MemoryImage(artBytes),
+                          width: 256,
+                          allowUpscaling: false,
+                        ),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-                  child: Container(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.surface.withValues(alpha: 0.6),
+                  BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                    child: Container(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surface.withValues(alpha: 0.6),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
         } else {
@@ -493,7 +500,11 @@ class _PlayerCoverArt extends StatelessWidget {
               final artBytes = currentMetadata?.artBytes;
               return artBytes != null
                   ? DecorationImage(
-                      image: MemoryImage(artBytes),
+                      image: ResizeImage(
+                        MemoryImage(artBytes),
+                        width: 1024,
+                        allowUpscaling: false,
+                      ),
                       fit: BoxFit.cover,
                     )
                   : null;

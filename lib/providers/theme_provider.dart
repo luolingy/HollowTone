@@ -109,7 +109,13 @@ class SeedColorNotifier extends _$SeedColorNotifier {
 
     try {
       final paletteGenerator = await PaletteGenerator.fromImageProvider(
-        MemoryImage(artBytes),
+        // Decode a tiny version for palette extraction; full-res covers can
+        // take seconds to decode and block the UI thread.
+        ResizeImage(
+          MemoryImage(artBytes),
+          width: 100,
+          allowUpscaling: false,
+        ),
         size: const Size(200, 200),
         maximumColorCount: 20, // Increase color count for better extraction
       );

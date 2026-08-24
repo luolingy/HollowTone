@@ -149,6 +149,7 @@ class _MobileMiniPlayer extends HookConsumerWidget {
                           ? Image.memory(
                               currentMetadata!.artBytes!,
                               fit: BoxFit.cover,
+                              cacheWidth: 288,
                             )
                           : Container(
                               color: Colors.grey[800],
@@ -379,6 +380,7 @@ class _DesktopMiniPlayer extends HookConsumerWidget {
                                 ? Image.memory(
                                     currentMetadata!.artBytes!,
                                     fit: BoxFit.cover,
+                                    cacheWidth: 288,
                                   )
                                 : Container(
                                     color: Colors.grey[800],
