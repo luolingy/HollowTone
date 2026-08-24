@@ -1,6 +1,6 @@
 ; ==================================================
 #define AppVersion "1.0.0"
-#define BuildNumber "47"
+#define BuildNumber "48"
 ; ==================================================
 
 #define FullVersion AppVersion + "." + BuildNumber
@@ -47,7 +47,6 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Filename: "{app}\groovybox.exe"; Description: "Launch GroovyBox"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\dev.solsynth\GroovyBox"
 Type: filesandordirs; Name: "{userappdata}\io.qzz.luolingy\groovybox"
 Type: files; Name: "{group}\GroovyBox.lnk" ;
 Type: files; Name: "{autodesktop}\GroovyBox.lnk" ;
