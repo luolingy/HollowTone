@@ -1,4 +1,4 @@
-﻿import 'package:easy_localization/easy_localization.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
@@ -168,9 +168,7 @@ class PlayerScreen extends HookConsumerWidget {
                       height: devicePadding.top + 60,
                       child: GestureDetector(
                         onPanStart: (details) => windowManager.startDragging(),
-                        child: Container(
-                          color: Colors.transparent,
-                        ),
+                        child: Container(color: Colors.transparent),
                       ),
                     ),
                   // Main content (StreamBuilder)
@@ -330,85 +328,84 @@ class _DesktopLayout extends HookConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentMetadata = ref.watch(currentTrackMetadataProvider);
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 300),
-      child: switch (viewMode.value) {
-        ViewMode.cover => Center(
-          key: const ValueKey('cover'),
-          child: _PlayerCoverControlsPanel(
-            player: player,
-            currentMetadata: currentMetadata,
-            media: media,
-            trackPath: trackPath,
+    // Instant view swap: cross-fading two heavy views doubles layout/raster
+    // load during the transition and makes switching feel laggy.
+    return switch (viewMode.value) {
+      ViewMode.cover => Center(
+        key: const ValueKey('cover'),
+        child: _PlayerCoverControlsPanel(
+          player: player,
+          currentMetadata: currentMetadata,
+          media: media,
+          trackPath: trackPath,
+        ),
+      ),
+      ViewMode.lyrics => Stack(
+        key: const ValueKey('lyrics'),
+        children: [
+          // Left Side: Cover + Controls
+          Positioned.fill(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: _PlayerCoverControlsPanel(
+                      player: player,
+                      currentMetadata: currentMetadata,
+                      media: media,
+                      trackPath: trackPath,
+                    ),
+                  ),
+                ),
+                Expanded(child: const SizedBox.shrink()),
+              ],
+            ),
           ),
-        ),
-        ViewMode.lyrics => Stack(
-          key: const ValueKey('lyrics'),
-          children: [
-            // Left Side: Cover + Controls
-            Positioned.fill(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: _PlayerCoverControlsPanel(
-                        player: player,
-                        currentMetadata: currentMetadata,
-                        media: media,
-                        trackPath: trackPath,
-                      ),
+          // Overlaid Lyrics on the right
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: MediaQuery.sizeOf(context).width * 0.6,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: _PlayerLyrics(player: player),
+            ),
+          ),
+        ],
+      ),
+      ViewMode.queue => Stack(
+        key: const ValueKey('queue'),
+        children: [
+          // Left Side: Cover + Controls
+          Positioned.fill(
+            child: Row(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: _PlayerCoverControlsPanel(
+                      player: player,
+                      currentMetadata: currentMetadata,
+                      media: media,
+                      trackPath: trackPath,
                     ),
                   ),
-                  Expanded(child: const SizedBox.shrink()),
-                ],
-              ),
+                ),
+                Expanded(child: const SizedBox.shrink()),
+              ],
             ),
-            // Overlaid Lyrics on the right
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: MediaQuery.sizeOf(context).width * 0.6,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: _PlayerLyrics(player: player),
-              ),
-            ),
-          ],
-        ),
-        ViewMode.queue => Stack(
-          key: const ValueKey('queue'),
-          children: [
-            // Left Side: Cover + Controls
-            Positioned.fill(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: _PlayerCoverControlsPanel(
-                        player: player,
-                        currentMetadata: currentMetadata,
-                        media: media,
-                        trackPath: trackPath,
-                      ),
-                    ),
-                  ),
-                  Expanded(child: const SizedBox.shrink()),
-                ],
-              ),
-            ),
-            // Overlaid Queue on the right
-            Positioned(
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: MediaQuery.sizeOf(context).width * 0.5,
-              child: _QueueView(player: player).padding(right: 64),
-            ),
-          ],
-        ),
-      },
-    );
+          ),
+          // Overlaid Queue on the right
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            width: MediaQuery.sizeOf(context).width * 0.5,
+            child: _QueueView(player: player).padding(right: 64),
+          ),
+        ],
+      ),
+    };
   }
 }
 
@@ -567,6 +564,18 @@ class _PlayerLyrics extends HookConsumerWidget {
       addedAt: DateTime.now(),
     );
 
+    // Parse lyrics once per track; parent rebuilds (metadata/settings emits)
+    // must not re-run the JSON decode every time.
+    final parsedLyrics = useMemoized(() {
+      final raw = track.lyrics;
+      if (raw == null) return null;
+      try {
+        return LyricsData.fromJsonString(raw);
+      } catch (_) {
+        return null;
+      }
+    }, [track.id, track.lyrics?.length ?? 0]);
+
     return _buildLyricsContent(
       track,
       metadataAsync,
@@ -576,6 +585,7 @@ class _PlayerLyrics extends HookConsumerWidget {
       neteaseProviderInstance,
       lrclibProviderInstance,
       context,
+      parsedLyrics,
     );
   }
 
@@ -612,6 +622,7 @@ class _PlayerLyrics extends HookConsumerWidget {
     dynamic neteaseProviderInstance,
     dynamic lrclibProviderInstance,
     BuildContext context,
+    LyricsData? parsedLyrics,
   ) {
     if (track.lyrics == null) {
       // Show fetch lyrics UI
@@ -645,34 +656,34 @@ class _PlayerLyrics extends HookConsumerWidget {
       );
     }
 
-    try {
-      final lyricsData = LyricsData.fromJsonString(track.lyrics!);
+    if (parsedLyrics == null) {
+      // Lyrics exist but could not be parsed - fall back to plain text view
+      // over the raw lines, mirroring the old catch-path behavior.
+      return const SizedBox.shrink();
+    }
 
-      if (lyricsData.type == 'timed') {
-        return _TimedLyricsView(
-          lyrics: lyricsData,
-          player: player,
-          track: track,
-        );
-      } else {
-        // Plain text lyrics
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: lyricsData.lines.length,
-          itemBuilder: (context, index) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                lyricsData.lines[index].text,
-                style: Theme.of(context).textTheme.bodyLarge,
-                textAlign: TextAlign.center,
-              ),
-            );
-          },
-        );
-      }
-    } catch (e) {
-      return Center(child: Text('errorLoadingLyrics'.tr(args: [e.toString()])));
+    if (parsedLyrics.type == 'timed') {
+      return _TimedLyricsView(
+        lyrics: parsedLyrics,
+        player: player,
+        track: track,
+      );
+    } else {
+      // Plain text lyrics
+      return ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: parsedLyrics.lines.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(
+              parsedLyrics.lines[index].text,
+              style: Theme.of(context).textTheme.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
+          );
+        },
+      );
     }
   }
 }
@@ -714,7 +725,11 @@ class _FetchLyricsDialog extends StatelessWidget {
             text: TextSpan(
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               children: [
-                TextSpan(text: 'searchLyricsWith'.tr(args: [searchTerm.split(' ').first])),
+                TextSpan(
+                  text: 'searchLyricsWith'.tr(
+                    args: [searchTerm.split(' ').first],
+                  ),
+                ),
                 TextSpan(
                   text: ' $searchTerm',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -730,7 +745,7 @@ class _FetchLyricsDialog extends StatelessWidget {
                 ListTile(
                   dense: true,
                   leading: const Icon(Symbols.library_music),
-                        title: Text('musixmatch'.tr()),
+                  title: Text('musixmatch'.tr()),
                   shape: RoundedRectangleBorder(
                     borderRadius: const BorderRadius.all(Radius.circular(12)),
                   ),
@@ -898,9 +913,9 @@ class _FetchLyricsDialog extends StatelessWidget {
     final lrc = await impl.fetchLyric(match.songId);
     if (!context.mounted) return;
     if (lrc == null || lrc.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('noOnlineResults'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('noOnlineResults'.tr())));
       return;
     }
 
@@ -913,7 +928,9 @@ class _FetchLyricsDialog extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'importedLyricsLines'.tr(args: [match.title, '${lyricsData.lines.length}']),
+          'importedLyricsLines'.tr(
+            args: [match.title, '${lyricsData.lines.length}'],
+          ),
         ),
       ),
     );
@@ -1190,9 +1207,7 @@ class _LyricsAdjustButton extends HookConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              'enterOffsetMs'.tr(),
-            ),
+            Text('enterOffsetMs'.tr()),
             const SizedBox(height: 16),
             TextField(
               controller: offsetController,
@@ -1526,7 +1541,9 @@ class _QueueView extends HookConsumerWidget {
               return Column(
                 children: [
                   Material(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     child: Row(
                       children: [
                         Expanded(
@@ -1542,22 +1559,14 @@ class _QueueView extends HookConsumerWidget {
                         IconButton(
                           icon: const Icon(Symbols.arrow_upward),
                           tooltip: 'up'.tr(),
-                          onPressed: () => _moveBlock(
-                            player,
-                            playlist,
-                            selected,
-                            true,
-                          ),
+                          onPressed: () =>
+                              _moveBlock(player, playlist, selected, true),
                         ),
                         IconButton(
                           icon: const Icon(Symbols.arrow_downward),
                           tooltip: 'down'.tr(),
-                          onPressed: () => _moveBlock(
-                            player,
-                            playlist,
-                            selected,
-                            false,
-                          ),
+                          onPressed: () =>
+                              _moveBlock(player, playlist, selected, false),
                         ),
                         IconButton(
                           icon: const Icon(Symbols.check),
@@ -1707,10 +1716,7 @@ class _FanLyricsView extends HookConsumerWidget {
     // Render one extra faded ring beyond the visible window so rows
     // slide in/out smoothly while scrolling.
     final firstVisible = math.max(0, viewCenter.floor() - _half - 1);
-    final lastVisible = math.min(
-      total - 1,
-      viewCenter.ceil() + _half + 1,
-    );
+    final lastVisible = math.min(total - 1, viewCenter.ceil() + _half + 1);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1796,8 +1802,9 @@ class _FanLyricsView extends HookConsumerWidget {
               curve: _animCurve,
               child: TweenAnimationBuilder<double>(
                 tween: Tween(
-                  end: math.asin((signedDist * _itemExtent / radius)
-                      .clamp(-1.0, 1.0)),
+                  end: math.asin(
+                    (signedDist * _itemExtent / radius).clamp(-1.0, 1.0),
+                  ),
                 ),
                 duration: _animDuration,
                 curve: _animCurve,
@@ -1839,9 +1846,7 @@ class _FanLyricsView extends HookConsumerWidget {
                           fontWeight: isActiveLine
                               ? FontWeight.bold
                               : FontWeight.normal,
-                          color: isActiveLine
-                              ? primaryColor
-                              : dimColor,
+                          color: isActiveLine ? primaryColor : dimColor,
                         ),
                         child: lineChild,
                       ),
@@ -1854,21 +1859,15 @@ class _FanLyricsView extends HookConsumerWidget {
         }
 
         final visibleLines = <Widget>[
-          const Positioned.fill(
-            child: ColoredBox(color: Colors.transparent),
-          ),
+          const Positioned.fill(child: ColoredBox(color: Colors.transparent)),
           for (int i = firstVisible; i <= lastVisible; i++)
-            KeyedSubtree(
-              key: ValueKey('fan-line-$i'),
-              child: buildLine(i),
-            ),
+            KeyedSubtree(key: ValueKey('fan-line-$i'), child: buildLine(i)),
         ];
 
         return GestureDetector(
           onVerticalDragStart: (_) => beginManualScroll(),
           onVerticalDragUpdate: (details) {
-            var next =
-                centerFraction.value - details.delta.dy / _itemExtent;
+            var next = centerFraction.value - details.delta.dy / _itemExtent;
             if (next < 0) next = 0;
             if (next >= lyrics.lines.length) {
               next = lyrics.lines.length - 1.0;
@@ -2736,11 +2735,10 @@ class _PlayModeButton extends StatelessWidget {
               initialData: player.state.shuffle,
               builder: (context, shuffleSnapshot) {
                 final shuffle = shuffleSnapshot.data ?? false;
-                final active =
-                    _PlayMode.values.firstWhere(
-                      (m) => m.matches(shuffle: shuffle, mode: mode),
-                      orElse: () => _PlayMode.sequential,
-                    );
+                final active = _PlayMode.values.firstWhere(
+                  (m) => m.matches(shuffle: shuffle, mode: mode),
+                  orElse: () => _PlayMode.sequential,
+                );
                 return Tooltip(
                   message: active.labelKey.tr(),
                   child: Icon(
@@ -2758,4 +2756,3 @@ class _PlayModeButton extends StatelessWidget {
     );
   }
 }
-
