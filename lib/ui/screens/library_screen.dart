@@ -65,9 +65,19 @@ class LibraryScreen extends HookConsumerWidget {
 
   static const List<String> lyricsExtensions = ['lrc', 'srt', 'txt'];
 
+  static const List<String> imageExtensions = [
+    'jpg',
+    'jpeg',
+    'png',
+    'webp',
+    'bmp',
+    'gif',
+  ];
+
   static const List<String> allAllowedExtensions = [
     ...audioExtensions,
     ...lyricsExtensions,
+    ...imageExtensions,
   ];
 
   /// Shared action row for selection mode: select all, invert, add to queue,
@@ -279,34 +289,55 @@ class LibraryScreen extends HookConsumerWidget {
                                   .whereType<String>()
                                   .toList();
                               if (paths.isNotEmpty) {
-                                // Separate audio and lyrics files
-                                final audioPaths = paths.where((path) {
-                                  final ext = p
-                                      .extension(path)
-                                      .toLowerCase()
-                                      .replaceFirst('.', '');
-                                  return audioExtensions.contains(ext);
-                                }).toList();
-                                final lyricsPaths = paths.where((path) {
-                                  final ext = p
-                                      .extension(path)
-                                      .toLowerCase()
-                                      .replaceFirst('.', '');
-                                  return lyricsExtensions.contains(ext);
-                                }).toList();
+                                String extOf(String path) => p
+                                    .extension(path)
+                                    .toLowerCase()
+                                    .replaceFirst('.', '');
+                                final audioPaths = paths
+                                    .where(
+                                      (path) => audioExtensions.contains(
+                                        extOf(path),
+                                      ),
+                                    )
+                                    .toList();
+                                final lyricsPaths = paths
+                                    .where(
+                                      (path) => lyricsExtensions.contains(
+                                        extOf(path),
+                                      ),
+                                    )
+                                    .toList();
+                                final coverPaths = paths
+                                    .where(
+                                      (path) => imageExtensions.contains(
+                                        extOf(path),
+                                      ),
+                                    )
+                                    .toList();
 
-                                // Import tracks if any
+                                // Import tracks first, then auto-assign the
+                                // selected lyrics/covers by file name.
                                 if (audioPaths.isNotEmpty) {
                                   await repo.importFiles(audioPaths);
                                 }
 
-                                // Import lyrics if any
                                 if (!context.mounted) return;
-                                if (lyricsPaths.isNotEmpty) {
-                                  await _batchImportLyricsFromPaths(
-                                    context,
-                                    ref,
-                                    lyricsPaths,
+                                if (lyricsPaths.isNotEmpty ||
+                                    coverPaths.isNotEmpty) {
+                                  final applied = await repo
+                                      .applySidecarsByFilename(
+                                        lyricPaths: lyricsPaths,
+                                        coverPaths: coverPaths,
+                                      );
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'sidecarsApplied'.tr(
+                                          args: [applied.toString()],
+                                        ),
+                                      ),
+                                    ),
                                   );
                                 }
                               }
@@ -423,34 +454,52 @@ class LibraryScreen extends HookConsumerWidget {
                               .whereType<String>()
                               .toList();
                           if (paths.isNotEmpty) {
-                            // Separate audio and lyrics files
-                            final audioPaths = paths.where((path) {
-                              final ext = p
-                                  .extension(path)
-                                  .toLowerCase()
-                                  .replaceFirst('.', '');
-                              return audioExtensions.contains(ext);
-                            }).toList();
-                            final lyricsPaths = paths.where((path) {
-                              final ext = p
-                                  .extension(path)
-                                  .toLowerCase()
-                                  .replaceFirst('.', '');
-                              return lyricsExtensions.contains(ext);
-                            }).toList();
+                            String extOf(String path) => p
+                                .extension(path)
+                                .toLowerCase()
+                                .replaceFirst('.', '');
+                            final audioPaths = paths
+                                .where(
+                                  (path) =>
+                                      audioExtensions.contains(extOf(path)),
+                                )
+                                .toList();
+                            final lyricsPaths = paths
+                                .where(
+                                  (path) =>
+                                      lyricsExtensions.contains(extOf(path)),
+                                )
+                                .toList();
+                            final coverPaths = paths
+                                .where(
+                                  (path) =>
+                                      imageExtensions.contains(extOf(path)),
+                                )
+                                .toList();
 
-                            // Import tracks if any
+                            // Import tracks first, then auto-assign the
+                            // selected lyrics/covers by file name.
                             if (audioPaths.isNotEmpty) {
                               await repo.importFiles(audioPaths);
                             }
 
-                            // Import lyrics if any
                             if (!context.mounted) return;
-                            if (lyricsPaths.isNotEmpty) {
-                              await _batchImportLyricsFromPaths(
-                                context,
-                                ref,
-                                lyricsPaths,
+                            if (lyricsPaths.isNotEmpty ||
+                                coverPaths.isNotEmpty) {
+                              final applied = await repo
+                                  .applySidecarsByFilename(
+                                    lyricPaths: lyricsPaths,
+                                    coverPaths: coverPaths,
+                                  );
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'sidecarsApplied'.tr(
+                                      args: [applied.toString()],
+                                    ),
+                                  ),
+                                ),
                               );
                             }
                           }
@@ -1077,10 +1126,9 @@ class LibraryScreen extends HookConsumerWidget {
     if (match == null || !context.mounted) return;
 
     // Choose what to apply.
-    var fillInfo = track.artist == null || track.artist!.trim().isEmpty;
+    var fillInfo = true;
     var downloadCover = true;
     var replaceLyrics = false;
-    String? lyricText;
     Uint8List? coverBytes;
 
     final confirmed = await showDialog<bool>(
@@ -1129,7 +1177,22 @@ class LibraryScreen extends HookConsumerWidget {
       },
     );
     if (confirmed != true || !context.mounted) return;
-    if (replaceLyrics) lyricText = await impl.fetchLyric(match.songId);
+
+    // Fetch and normalize lyrics to LyricsData JSON before persisting, so
+    // consumers reading via LyricsData.fromJsonString always get valid data.
+    String? lyricsJson;
+    if (replaceLyrics) {
+      final lyricText = await impl.fetchLyric(match.songId);
+      if (!context.mounted) return;
+      if (lyricText == null || lyricText.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('noOnlineResults'.tr())),
+        );
+        return;
+      }
+      lyricsJson =
+          LyricsParser.parse(lyricText, '${match.title}.lrc').toJsonString();
+    }
     if (!context.mounted) return;
     if (downloadCover) coverBytes = await impl.downloadCover(match.songId);
 
@@ -1139,7 +1202,7 @@ class LibraryScreen extends HookConsumerWidget {
           trackId: track.id,
           match: match,
           coverBytes: coverBytes,
-          lyrics: lyricText,
+          lyrics: lyricsJson,
           fillInfo: fillInfo,
           downloadCover: downloadCover && coverBytes != null,
           replaceLyrics: replaceLyrics,
@@ -1370,55 +1433,4 @@ class LibraryScreen extends HookConsumerWidget {
     }
   }
 
-  Future<void> _batchImportLyricsFromPaths(
-    BuildContext context,
-    WidgetRef ref,
-    List<String> lyricsPaths,
-  ) async {
-    if (lyricsPaths.isEmpty) return;
-
-    final repo = ref.read(trackRepositoryProvider.notifier);
-    final tracks = await repo.getAllTracks();
-
-    int matched = 0;
-    int notMatched = 0;
-
-    for (final path in lyricsPaths) {
-      final file = File(path);
-      final content = await file.readAsString();
-      final filename = p.basename(path);
-
-      // Get basename without extension for matching
-      final baseName = filename
-          .replaceAll(RegExp(r'\.(lrc|srt|txt)$', caseSensitive: false), '')
-          .toLowerCase();
-
-      // Try to find a matching track by title
-      final matchingTrack = tracks.where((t) {
-        final trackTitle = t.title.toLowerCase();
-        return trackTitle == baseName ||
-            trackTitle.contains(baseName) ||
-            baseName.contains(trackTitle);
-      }).firstOrNull;
-
-      if (matchingTrack != null) {
-        final lyricsData = LyricsParser.parse(content, filename);
-        await repo.updateLyrics(matchingTrack.id, lyricsData.toJsonString());
-        matched++;
-      } else {
-        notMatched++;
-      }
-    }
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-          content: Text(
-            'batchImportComplete'.tr(
-              args: [matched.toString(), notMatched.toString()],
-            ),
-          ),
-      ),
-    );
-  }
 }

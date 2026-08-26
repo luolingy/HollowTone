@@ -1,4 +1,5 @@
-﻿import 'dart:io';
+import 'dart:io';
+import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +7,6 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:groovybox/data/track_repository.dart';
-import 'package:groovybox/logic/lyrics_parser.dart';
 import 'package:groovybox/logic/window_helpers.dart';
 import 'package:groovybox/providers/settings_provider.dart';
 import 'package:groovybox/router.dart';
@@ -137,32 +137,42 @@ class Shell extends HookConsumerWidget {
                 .whereType<String>()
                 .toList();
             if (paths.isNotEmpty) {
-              // Separate audio and lyrics files
-              final audioPaths = paths.where((path) {
-                final ext = p
-                    .extension(path)
-                    .toLowerCase()
-                    .replaceFirst('.', '');
-                return LibraryScreen.audioExtensions.contains(ext);
-              }).toList();
-              final lyricsPaths = paths.where((path) {
-                final ext = p
-                    .extension(path)
-                    .toLowerCase()
-                    .replaceFirst('.', '');
-                return LibraryScreen.lyricsExtensions.contains(ext);
-              }).toList();
+              String extOf(String path) => p
+                  .extension(path)
+                  .toLowerCase()
+                  .replaceFirst('.', '');
+              final audioPaths = paths
+                  .where((path) => LibraryScreen.audioExtensions.contains(extOf(path)))
+                  .toList();
+              final lyricsPaths = paths
+                  .where((path) => LibraryScreen.lyricsExtensions.contains(extOf(path)))
+                  .toList();
+              final coverPaths = paths
+                  .where((path) => LibraryScreen.imageExtensions.contains(extOf(path)))
+                  .toList();
 
-              // Import tracks if any
+              // Import tracks first, then auto-assign the selected
+              // lyrics/covers by file name.
               if (audioPaths.isNotEmpty) {
-                final repo = ref.watch(trackRepositoryProvider.notifier);
+                final repo = ref.read(trackRepositoryProvider.notifier);
                 await repo.importFiles(audioPaths);
               }
 
-              // Import lyrics if any
               if (!context.mounted) return;
-              if (lyricsPaths.isNotEmpty) {
-                await _batchImportLyricsFromPaths(context, ref, lyricsPaths);
+              if (lyricsPaths.isNotEmpty || coverPaths.isNotEmpty) {
+                final repo = ref.read(trackRepositoryProvider.notifier);
+                final applied = await repo.applySidecarsByFilename(
+                  lyricPaths: lyricsPaths,
+                  coverPaths: coverPaths,
+                );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      'sidecarsApplied'.tr(args: [applied.toString()]),
+                    ),
+                  ),
+                );
               }
             }
           }
@@ -317,56 +327,6 @@ class Shell extends HookConsumerWidget {
               Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _batchImportLyricsFromPaths(
-    BuildContext context,
-    WidgetRef ref,
-    List<String> lyricsPaths,
-  ) async {
-    if (lyricsPaths.isEmpty) return;
-
-    final repo = ref.read(trackRepositoryProvider.notifier);
-    final tracks = await repo.getAllTracks();
-
-    int matched = 0;
-    int notMatched = 0;
-
-    for (final path in lyricsPaths) {
-      final file = File(path);
-      final content = await file.readAsString();
-      final filename = p.basename(path);
-
-      // Get basename without extension for matching
-      final baseName = filename
-          .replaceAll(RegExp(r'\.(lrc|srt|txt)$', caseSensitive: false), '')
-          .toLowerCase();
-
-      // Try to find a matching track by title
-      final matchingTrack = tracks.where((t) {
-        final trackTitle = t.title.toLowerCase();
-        return trackTitle == baseName ||
-            trackTitle.contains(baseName) ||
-            baseName.contains(trackTitle);
-      }).firstOrNull;
-
-      if (matchingTrack != null) {
-        final lyricsData = LyricsParser.parse(content, filename);
-        await repo.updateLyrics(matchingTrack.id, lyricsData.toJsonString());
-        matched++;
-      } else {
-        notMatched++;
-      }
-    }
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Batch import complete: $matched matched, $notMatched not matched',
         ),
       ),
     );

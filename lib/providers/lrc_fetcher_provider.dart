@@ -71,7 +71,7 @@ class LyricsFetcher extends _$LyricsFetcher {
           debugPrint('Updated current track provider with new lyrics');
         }
 
-        // Invalidate the track provider to refresh the UI
+        // Invalidate the track provider to refresh the UI.
         ref.invalidate(trackByPathProvider(trackPath));
 
         debugPrint('Invalidated track provider for $trackPath');

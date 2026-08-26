@@ -69,6 +69,7 @@
   "confirmDeleteTracks": "Are you sure you want to delete {} tracks? This will remove them from your device.",
   "deletedTracks": "Deleted {} tracks",
   "batchImportComplete": "Batch import complete: {} matched, {} not matched",
+  "sidecarsApplied": "Applied {} lyric/cover file(s) matched by file name",
   "settings": "Settings",
   "autoScan": "Auto Scan",
   "autoScanMusicLibraries": "Auto-scan music libraries",

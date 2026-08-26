@@ -923,6 +923,7 @@ class _FetchLyricsDialog extends StatelessWidget {
     await ref
         .read(trackRepositoryProvider.notifier)
         .updateLyrics(track.id, lyricsData.toJsonString());
+    ref.invalidate(trackByPathProvider(track.path));
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(

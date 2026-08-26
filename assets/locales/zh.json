@@ -70,6 +70,7 @@
   "confirmDeleteTracks": "您确定要删除 {} 首曲目吗？这将从您的设备中移除它们。",
   "deletedTracks": "已删除 {} 首曲目",
   "batchImportComplete": "批量导入完成：{} 匹配，{} 不匹配",
+  "sidecarsApplied": "已按文件名匹配并应用 {} 项歌词/封面",
   "settings": "设置",
   "autoScan": "自动扫描",
   "autoScanMusicLibraries": "自动扫描音乐库",

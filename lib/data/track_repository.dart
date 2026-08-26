@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:groovybox/data/db.dart';
 import 'package:groovybox/logic/metadata_service.dart';
+import 'package:groovybox/logic/lyrics_parser.dart';
 import 'package:groovybox/logic/online_metadata_service.dart';
 import 'package:groovybox/providers/audio_provider.dart';
 import 'package:groovybox/providers/db_provider.dart';
@@ -299,29 +300,19 @@ class TrackRepository extends _$TrackRepository {
     )..where((t) => t.id.equals(trackId))).getSingleOrNull();
     if (track == null) return;
 
-    // 1. Fill metadata fields that are currently empty only.
+    // 1. Apply the selected online metadata. A user explicitly chose this
+    // match, so do not keep stale local fields when fillInfo is enabled.
     if (fillInfo && match != null) {
-      final needsArtist =
-          track.artist == null || track.artist!.trim().isEmpty;
-      final needsAlbum = track.album == null || track.album!.trim().isEmpty;
-      final needsDuration = track.duration == null && match.durationMs != null;
-      if (needsArtist || needsAlbum || needsDuration) {
-        await (db.update(
-          db.tracks,
-        )..where((t) => t.id.equals(track.id))).write(
-          TracksCompanion(
-            artist: needsArtist
-                ? Value(match.artist.isEmpty ? null : match.artist)
-                : const Value.absent(),
-            album: needsAlbum
-                ? Value(match.album?.isEmpty ?? true ? null : match.album)
-                : const Value.absent(),
-            duration: needsDuration
-                ? Value(match.durationMs)
-                : const Value.absent(),
-          ),
-        );
-      }
+      await (db.update(
+        db.tracks,
+      )..where((t) => t.id.equals(track.id))).write(
+        TracksCompanion(
+          title: Value(match.title.trim().isEmpty ? track.title : match.title),
+          artist: Value(match.artist.trim().isEmpty ? null : match.artist),
+          album: Value(match.album?.trim().isEmpty ?? true ? null : match.album),
+          duration: Value(match.durationMs),
+        ),
+      );
     }
 
     // 2. Cover art (updateTrackCover also refreshes the playing state).
@@ -393,8 +384,20 @@ class TrackRepository extends _$TrackRepository {
     }
   }
 
-  /// Update lyrics for a track.
-  Future<void> updateLyrics(int trackId, String? lyricsJson) async {
+  /// Update lyrics for a track. Accepts either ready-to-store LyricsData JSON
+  /// or raw lyric text (LRC / SRT / plain); raw text is normalized first so
+  /// every consumer reading via [LyricsData.fromJsonString] stays valid.
+  Future<void> updateLyrics(int trackId, String? lyricsInput) async {
+    String? lyricsJson = lyricsInput;
+    if (lyricsJson != null && !lyricsJson.trimLeft().startsWith('{"type"')) {
+      try {
+        lyricsJson =
+            LyricsParser.parse(lyricsJson, 'lyrics.lrc').toJsonString();
+      } catch (_) {
+        // Keep the original text if parsing fails.
+      }
+    }
+
     final db = ref.read(databaseProvider);
     await (db.update(db.tracks)..where((t) => t.id.equals(trackId))).write(
       TracksCompanion(lyrics: Value(lyricsJson)),
@@ -408,6 +411,66 @@ class TrackRepository extends _$TrackRepository {
       currentTrackNotifier.setTrack(updatedTrack);
       debugPrint('Updated current track provider with imported lyrics');
     }
+  }
+
+  /// Normalizes a file name for sidecar matching: lowercased, extension
+  /// stripped, and the copy-mode timestamp prefix (`<13-digit-millis>_`)
+  /// removed so internally copied files still match their original name.
+  static String _sidecarKey(String fileName) => p
+      .basenameWithoutExtension(fileName)
+      .toLowerCase()
+      .replaceFirst(RegExp(r'^\d{13}_'), '')
+      .trim();
+
+  /// Assigns sidecar lyrics/covers to tracks purely by file name: a lyric or
+  /// image file is applied to every track whose audio file has the same
+  /// basename (case-insensitive). Returns the number of applied sidecars.
+  Future<int> applySidecarsByFilename({
+    List<String> lyricPaths = const [],
+    List<String> coverPaths = const [],
+  }) async {
+    if (lyricPaths.isEmpty && coverPaths.isEmpty) return 0;
+
+    final db = ref.read(databaseProvider);
+    final tracks = await db.select(db.tracks).get();
+
+    final lyricMap = {
+      for (final path in lyricPaths) _sidecarKey(p.basename(path)): path,
+    };
+    final coverMap = {
+      for (final path in coverPaths) _sidecarKey(p.basename(path)): path,
+    };
+
+    int applied = 0;
+    for (final track in tracks) {
+      final key = _sidecarKey(p.basename(track.path));
+
+      final lyricPath = lyricMap[key];
+      if (lyricPath != null) {
+        try {
+          final content = await File(lyricPath).readAsString();
+          final data = LyricsParser.parse(content, p.basename(lyricPath));
+          await updateLyrics(track.id, data.toJsonString());
+          applied++;
+        } catch (e) {
+          debugPrint('Error applying sidecar lyrics "$lyricPath": $e');
+        }
+      }
+
+      final coverPath = coverMap[key];
+      if (coverPath != null) {
+        try {
+          final bytes = await File(coverPath).readAsBytes();
+          if (bytes.isNotEmpty) {
+            await updateTrackCover(track.id, bytes);
+            applied++;
+          }
+        } catch (e) {
+          debugPrint('Error applying sidecar cover "$coverPath": $e');
+        }
+      }
+    }
+    return applied;
   }
 
   /// Get a single track by ID.
@@ -439,19 +502,43 @@ class TrackRepository extends _$TrackRepository {
       throw Exception('Directory does not exist: $directoryPath');
     }
 
+    const lyricExtensions = {'.lrc', '.srt', '.txt'};
+    const imageExtensions = {
+      '.jpg',
+      '.jpeg',
+      '.png',
+      '.webp',
+      '.bmp',
+      '.gif',
+    };
+
     final List<String> musicFiles = [];
+    final List<String> lyricFiles = [];
+    final List<String> coverFiles = [];
 
     await for (final entity in directory.list(recursive: recursive)) {
       if (entity is File) {
         final extension = p.extension(entity.path).toLowerCase();
         if (supportedFormats.contains(extension)) {
           musicFiles.add(entity.path);
+        } else if (lyricExtensions.contains(extension)) {
+          lyricFiles.add(entity.path);
+        } else if (imageExtensions.contains(extension)) {
+          coverFiles.add(entity.path);
         }
       }
     }
 
     if (musicFiles.isNotEmpty) {
       await importFiles(musicFiles);
+    }
+
+    // Auto-apply lyrics/covers found next to the audio files by file name.
+    if (lyricFiles.isNotEmpty || coverFiles.isNotEmpty) {
+      await applySidecarsByFilename(
+        lyricPaths: lyricFiles,
+        coverPaths: coverFiles,
+      );
     }
   }
 
