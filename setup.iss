@@ -1,6 +1,6 @@
 ; ==================================================
 #define AppVersion "1.0.0"
-#define BuildNumber "49"
+#define BuildNumber "50"
 ; ==================================================
 
 #define FullVersion AppVersion + "." + BuildNumber
