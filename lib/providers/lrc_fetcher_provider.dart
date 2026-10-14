@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:groovybox/data/db.dart' as db;
+import 'package:hollowtone/data/db.dart' as db;
 import 'package:drift/drift.dart' as drift;
-import 'package:groovybox/logic/lrc_providers.dart';
-import 'package:groovybox/logic/lyrics_parser.dart';
-import 'package:groovybox/providers/audio_provider.dart';
-import 'package:groovybox/providers/db_provider.dart';
-import 'package:groovybox/ui/screens/player_screen.dart';
+import 'package:hollowtone/logic/lrc_providers.dart';
+import 'package:hollowtone/logic/lyrics_parser.dart';
+import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/db_provider.dart';
+import 'package:hollowtone/ui/screens/player_screen.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 

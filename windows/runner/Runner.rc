@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "io.qzz.luolingy" "\0"
-            VALUE "FileDescription", "groovybox" "\0"
+            VALUE "FileDescription", "hollowtone" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "groovybox" "\0"
+            VALUE "InternalName", "hollowtone" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 io.qzz.luolingy. All rights reserved." "\0"
-            VALUE "OriginalFilename", "groovybox.exe" "\0"
-            VALUE "ProductName", "groovybox" "\0"
+            VALUE "OriginalFilename", "hollowtone.exe" "\0"
+            VALUE "ProductName", "hollowtone" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -6,10 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
-import 'package:groovybox/data/track_repository.dart';
-import 'package:groovybox/logic/window_helpers.dart';
-import 'package:groovybox/providers/settings_provider.dart';
-import 'package:groovybox/router.dart';
+import 'package:hollowtone/data/track_repository.dart';
+import 'package:hollowtone/logic/window_helpers.dart';
+import 'package:hollowtone/providers/settings_provider.dart';
+import 'package:hollowtone/router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
@@ -218,7 +218,7 @@ class Shell extends HookConsumerWidget {
                                 else
                                   SizedBox(height: 32),
                                 Text(
-                                  'GroovyBox',
+                                  tr('hollowTone'),
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     color: Theme.of(
@@ -245,7 +245,7 @@ class Shell extends HookConsumerWidget {
                                       ),
                                       const SizedBox(width: 8),
                                       Text(
-                                        'GroovyBox',
+                                        tr('hollowTone'),
                                         textAlign: TextAlign.start,
                                       ),
                                     ],

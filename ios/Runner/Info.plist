@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>GroovyBox</string>
+	<string>HollowTone</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>GroovyBox</string>
+	<string>HollowTone</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -56,12 +56,12 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
     <key>NSCameraUsageDescription</key>
-    <string>Grant access to Camera will allow GroovyBox add media to your library.</string>
+    <string>Grant access to Camera will allow HollowTone add media to your library.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Grant access to Microphone will allow GroovyBox record audio for your library.</string>
+    <string>Grant access to Microphone will allow HollowTone record audio for your library.</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Grant access to Photo Library will allow GroovyBox export media for you.</string>
+    <string>Grant access to Photo Library will allow HollowTone export media for you.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Grant access to Photo Library will allow GroovyBox add media to your library.</string>
+    <string>Grant access to Photo Library will allow HollowTone add media to your library.</string>
 </dict>
 </plist>

@@ -6,18 +6,18 @@
 #define FullVersion AppVersion + "." + BuildNumber
 
 [Setup]
-AppName=GroovyBox
+AppName=HollowTone
 AppVersion={#AppVersion}
 AppPublisher=Solsynth
 AppPublisherURL=https://luolingy.qzz.io
-AppSupportURL=https://www.luolingy.qzz.io/project-detail.html?slug=%E8%81%86%E9%98%81
-AppUpdatesURL=https://github.com/luolingy/GroovyBox/releases
+AppSupportURL=https://www.luolingy.qzz.io/project-detail.html?slug=%E7%A9%BA%E8%B0%B7
+AppUpdatesURL=https://github.com/luolingy/HollowTone/releases
 AppCopyright=Copyright © 2026 luoling/Solsynth
 VersionInfoVersion={#FullVersion}
-UninstallDisplayName=GroovyBox
-UninstallDisplayIcon={app}\groovybox.exe
+UninstallDisplayName=HollowTone
+UninstallDisplayIcon={app}\hollowtone.exe
 
-DefaultDirName={commonpf}\GroovyBox
+DefaultDirName={commonpf}\HollowTone
 UsePreviousAppDir=no
 
 OutputDir=.\Installer
@@ -36,17 +36,17 @@ PrivilegesRequired=admin
 Source: ".\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\GroovyBox"; Filename: "{app}\groovybox.exe";IconFilename: "{app}\groovybox.exe"
-Name: "{group}\{cm:UninstallProgram,GroovyBox}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\GroovyBox"; Filename: "{app}\groovybox.exe"; Tasks: desktopicon
+Name: "{group}\HollowTone"; Filename: "{app}\hollowtone.exe";IconFilename: "{app}\hollowtone.exe"
+Name: "{group}\{cm:UninstallProgram,HollowTone}"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\HollowTone"; Filename: "{app}\hollowtone.exe"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Run]
-Filename: "{app}\groovybox.exe"; Description: "Launch GroovyBox"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\hollowtone.exe"; Description: "Launch HollowTone"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-Type: filesandordirs; Name: "{userappdata}\io.qzz.luolingy\groovybox"
-Type: files; Name: "{group}\GroovyBox.lnk" ;
-Type: files; Name: "{autodesktop}\GroovyBox.lnk" ;
+Type: filesandordirs; Name: "{userappdata}\io.qzz.luolingy\hollowtone"
+Type: files; Name: "{group}\HollowTone.lnk" ;
+Type: files; Name: "{autodesktop}\HollowTone.lnk" ;

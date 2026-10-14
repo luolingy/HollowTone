@@ -1,13 +1,13 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:groovybox/logic/audio_handler.dart';
-import 'package:groovybox/data/track_repository.dart';
-import 'package:groovybox/logic/mpv_hot_restart_cleaner.dart';
-import 'package:groovybox/logic/tray_helpers.dart';
-import 'package:groovybox/logic/window_helpers.dart';
-import 'package:groovybox/providers/audio_provider.dart';
-import 'package:groovybox/providers/theme_provider.dart';
-import 'package:groovybox/router.dart';
+import 'package:hollowtone/logic/audio_handler.dart';
+import 'package:hollowtone/data/track_repository.dart';
+import 'package:hollowtone/logic/mpv_hot_restart_cleaner.dart';
+import 'package:hollowtone/logic/tray_helpers.dart';
+import 'package:hollowtone/logic/window_helpers.dart';
+import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/theme_provider.dart';
+import 'package:hollowtone/router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -36,8 +36,8 @@ Future<void> main() async {
   _audioHandler = await audio_service.AudioService.init(
     builder: () => AudioHandler(),
     config: const audio_service.AudioServiceConfig(
-      androidNotificationChannelId: 'io.qzz.luolingy.groovybox.channel.audio',
-      androidNotificationChannelName: 'GroovyBox Audio',
+      androidNotificationChannelId: 'io.qzz.luolingy.hollowtone.channel.audio',
+      androidNotificationChannelName: 'HollowTone Audio',
       androidNotificationOngoing: true,
     ),
   );
@@ -56,7 +56,7 @@ Future<void> main() async {
             // Get the provider container and set it on the audio handler
             final container = ProviderScope.containerOf(context);
             _audioHandler.setProviderContainer(container);
-            return GroovyApp();
+            return HollowToneApp();
           },
         ),
       ),
@@ -64,14 +64,14 @@ Future<void> main() async {
   );
 }
 
-class GroovyApp extends ConsumerStatefulWidget {
-  const GroovyApp({super.key});
+class HollowToneApp extends ConsumerStatefulWidget {
+  const HollowToneApp({super.key});
 
   @override
-  ConsumerState<GroovyApp> createState() => _GroovyAppState();
+  ConsumerState<HollowToneApp> createState() => _HollowToneAppState();
 }
 
-class _GroovyAppState extends ConsumerState<GroovyApp> {
+class _HollowToneAppState extends ConsumerState<HollowToneApp> {
   @override
   void initState() {
     super.initState();
@@ -96,7 +96,7 @@ class _GroovyAppState extends ConsumerState<GroovyApp> {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'GroovyBox',
+      title: tr('hollowTone'),
       debugShowCheckedModeBanner: false,
       theme: ref.watch(lightThemeProvider),
       darkTheme: ref.watch(darkThemeProvider),

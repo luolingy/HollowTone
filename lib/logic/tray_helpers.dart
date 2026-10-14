@@ -38,7 +38,7 @@ class TrayWindowHandler with TrayListener, WindowListener {
         : 'assets/images/icon.png';
     try {
       await trayManager.setIcon(icon);
-      await trayManager.setToolTip('GroovyBox');
+      await trayManager.setToolTip(tr('hollowTone'));
       await trayManager.setContextMenu(await _buildMenu());
     } catch (e) {
       debugPrint('Tray: setup failed: $e');

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import 'package:groovybox/providers/settings_provider.dart';
+import 'package:hollowtone/providers/settings_provider.dart';
 
 part 'theme_provider.g.dart';
 

@@ -1,5 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:groovybox/providers/db_provider.dart';
+import 'package:hollowtone/providers/db_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'db.dart';
 

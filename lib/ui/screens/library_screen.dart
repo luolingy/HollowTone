@@ -5,20 +5,20 @@ import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
-import 'package:groovybox/data/db.dart';
-import 'package:groovybox/data/playlist_repository.dart';
-import 'package:groovybox/data/track_repository.dart';
+import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/data/playlist_repository.dart';
+import 'package:hollowtone/data/track_repository.dart';
 
-import 'package:groovybox/logic/lyrics_parser.dart';
-import 'package:groovybox/logic/online_metadata_service.dart';
-import 'package:groovybox/logic/window_helpers.dart';
-import 'package:groovybox/providers/audio_provider.dart';
-import 'package:groovybox/providers/settings_provider.dart';
-import 'package:groovybox/providers/watch_folder_provider.dart';
-import 'package:groovybox/router.dart';
-import 'package:groovybox/ui/tabs/albums_tab.dart';
-import 'package:groovybox/ui/tabs/playlists_tab.dart';
-import 'package:groovybox/ui/widgets/track_tile.dart';
+import 'package:hollowtone/logic/lyrics_parser.dart';
+import 'package:hollowtone/logic/online_metadata_service.dart';
+import 'package:hollowtone/logic/window_helpers.dart';
+import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/settings_provider.dart';
+import 'package:hollowtone/providers/watch_folder_provider.dart';
+import 'package:hollowtone/router.dart';
+import 'package:hollowtone/ui/tabs/albums_tab.dart';
+import 'package:hollowtone/ui/tabs/playlists_tab.dart';
+import 'package:hollowtone/ui/widgets/track_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:path/path.dart' as p;
@@ -262,7 +262,7 @@ class LibraryScreen extends HookConsumerWidget {
                                 ).clipRRect(all: 8).padding(vertical: 16),
                                 const Gap(12),
                                 Text(
-                                  'GroovyBox',
+                                  tr('hollowTone'),
                                   style: TextStyle(fontSize: 18),
                                 ),
                               ],

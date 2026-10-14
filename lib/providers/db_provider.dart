@@ -1,4 +1,4 @@
-import 'package:groovybox/data/db.dart';
+import 'package:hollowtone/data/db.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'db_provider.g.dart';

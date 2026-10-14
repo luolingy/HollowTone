@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 part 'db.g.dart';
 
@@ -116,6 +120,23 @@ class AppDatabase extends _$AppDatabase {
   }
 
   static QueryExecutor _openConnection() {
-    return driftDatabase(name: 'groovybox_db');
+    return driftDatabase(
+      name: 'hollowtone_db',
+      native: DriftNativeOptions(databasePath: _resolveDatabasePath),
+    );
+  }
+
+  /// Resolves the SQLite file path, renaming a database written under the old
+  /// `groovybox_db` name so libraries imported before the rename keep working.
+  static Future<String> _resolveDatabasePath() async {
+    final directory = await getApplicationDocumentsDirectory();
+    final path = p.join(directory.path, 'hollowtone_db.sqlite');
+    if (!await File(path).exists()) {
+      final legacy = File(p.join(directory.path, 'groovybox_db.sqlite'));
+      if (await legacy.exists()) {
+        await legacy.rename(path);
+      }
+    }
+    return path;
   }
 }

@@ -1,12 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
-import 'package:groovybox/data/track_repository.dart';
+import 'package:hollowtone/data/track_repository.dart';
 
-import 'package:groovybox/providers/settings_provider.dart';
-import 'package:groovybox/providers/theme_provider.dart';
-import 'package:groovybox/providers/watch_folder_provider.dart';
-import 'package:groovybox/providers/remote_provider.dart';
+import 'package:hollowtone/providers/settings_provider.dart';
+import 'package:hollowtone/providers/theme_provider.dart';
+import 'package:hollowtone/providers/watch_folder_provider.dart';
+import 'package:hollowtone/providers/remote_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_symbols_icons/symbols.dart';

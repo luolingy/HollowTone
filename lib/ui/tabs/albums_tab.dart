@@ -1,10 +1,10 @@
 import 'package:easy_localization/easy_localization.dart';
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
-import 'package:groovybox/data/playlist_repository.dart';
+import 'package:hollowtone/data/playlist_repository.dart';
 
-import 'package:groovybox/ui/screens/album_detail_screen.dart';
-import 'package:groovybox/ui/widgets/universal_image.dart';
+import 'package:hollowtone/ui/screens/album_detail_screen.dart';
+import 'package:hollowtone/ui/widgets/universal_image.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 

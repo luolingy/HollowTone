@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:gap/gap.dart';
-import 'package:groovybox/data/db.dart';
-import 'package:groovybox/data/playlist_repository.dart';
+import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/data/playlist_repository.dart';
 
-import 'package:groovybox/providers/audio_provider.dart';
-import 'package:groovybox/ui/widgets/track_tile.dart';
+import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/remote_provider.dart';
+import 'package:hollowtone/ui/widgets/track_tile.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:styled_widget/styled_widget.dart';
@@ -302,7 +303,7 @@ class PlaylistDetailScreen extends HookConsumerWidget {
           track.artUri!.startsWith('https://')) {
         // For remote tracks, skip artwork to avoid authentication issues
         // The artwork will be loaded separately when the track is played
-        if (!track.path.startsWith('groovybox://')) {
+        if (!isRemoteStreamPath(track.path)) {
           // Only try to cache artwork for non-remote tracks
           try {
             final cachedFile = await DefaultCacheManager().getSingleFile(

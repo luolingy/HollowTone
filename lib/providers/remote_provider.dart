@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:groovybox/data/db.dart';
-import 'package:groovybox/providers/db_provider.dart';
+import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/providers/db_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:jellyfin_dart/jellyfin_dart.dart';
@@ -97,7 +97,7 @@ class RemoteProviderService {
       final client = JellyfinDart(basePathOverride: provider.serverUrl);
 
       // Set device info
-      client.setDeviceId('groovybox-$providerId');
+      client.setDeviceId('hollowtone-$providerId');
       client.setVersion('1.0.0');
 
       // Authenticate
@@ -152,7 +152,8 @@ class RemoteProviderService {
     String token,
   ) async {
     // Generate secure protocol URL instead of exposing API key
-    final streamUrl = 'groovybox://remote/jellyfin/${provider.id}/${item.id}';
+    final streamUrl =
+        '$remoteStreamScheme://remote/jellyfin/${provider.id}/${item.id}';
 
     // Extract metadata
     final title = item.name ?? 'Unknown Title';
@@ -208,6 +209,22 @@ class RemoteProviderService {
   }
 }
 
+/// URI scheme used by the remote-stream protocol paths stored on tracks.
+const remoteStreamScheme = 'hollowtone';
+
+/// Legacy remote-stream scheme, still accepted for tracks imported before the
+/// rename. Remove it once those libraries have been re-indexed.
+const legacyRemoteStreamScheme = 'groovybox';
+
+/// Whether [scheme] is a remote-stream protocol scheme this app handles.
+bool isRemoteStreamScheme(String scheme) =>
+    scheme == remoteStreamScheme || scheme == legacyRemoteStreamScheme;
+
+/// Whether [path] is a remote-stream protocol path this app handles.
+bool isRemoteStreamPath(String path) =>
+    path.startsWith('$remoteStreamScheme://') ||
+    path.startsWith('$legacyRemoteStreamScheme://');
+
 // URL resolver for secure protocol URLs
 class RemoteUrlResolver {
   final Ref ref;
@@ -217,10 +234,10 @@ class RemoteUrlResolver {
 
   RemoteUrlResolver(this.ref);
 
-  /// Resolves a groovybox protocol URL to an actual streaming URL
+  /// Resolves a HollowTone protocol URL to an actual streaming URL
   Future<String?> resolveUrl(String protocolUrl) async {
     final uri = Uri.parse(protocolUrl);
-    if (uri.scheme != 'groovybox' || uri.host != 'remote') {
+    if (!isRemoteStreamScheme(uri.scheme) || uri.host != 'remote') {
       return null; // Not a protocol URL we handle
     }
 
@@ -277,7 +294,7 @@ class RemoteUrlResolver {
     // Token is expired or missing, authenticate
     try {
       final client = JellyfinDart(basePathOverride: provider.serverUrl);
-      client.setDeviceId('groovybox-$providerId');
+      client.setDeviceId('hollowtone-$providerId');
       client.setVersion('1.0.0');
 
       final userApi = client.getUserApi();
@@ -312,7 +329,7 @@ class RemoteUrlResolver {
   bool isProtocolUrl(String url) {
     try {
       final uri = Uri.parse(url);
-      return uri.scheme == 'groovybox' && uri.host == 'remote';
+      return isRemoteStreamScheme(uri.scheme) && uri.host == 'remote';
     } catch (e) {
       return false;
     }

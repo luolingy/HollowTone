@@ -5,13 +5,13 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:media_kit/media_kit.dart' as media_kit;
-import 'package:groovybox/data/db.dart' as db;
-import 'package:groovybox/logic/metadata_service.dart';
-import 'package:groovybox/providers/audio_provider.dart';
-import 'package:groovybox/providers/theme_provider.dart';
-import 'package:groovybox/providers/remote_provider.dart';
-import 'package:groovybox/providers/db_provider.dart';
-import 'package:groovybox/providers/settings_provider.dart';
+import 'package:hollowtone/data/db.dart' as db;
+import 'package:hollowtone/logic/metadata_service.dart';
+import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/theme_provider.dart';
+import 'package:hollowtone/providers/remote_provider.dart';
+import 'package:hollowtone/providers/db_provider.dart';
+import 'package:hollowtone/providers/settings_provider.dart';
 
 class AudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final media_kit.Player _player;

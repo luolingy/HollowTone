@@ -1,7 +1,7 @@
-import 'package:groovybox/logic/audio_handler.dart';
-import 'package:groovybox/logic/metadata_service.dart';
+import 'package:hollowtone/logic/audio_handler.dart';
+import 'package:hollowtone/logic/metadata_service.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:groovybox/data/db.dart' as db;
+import 'package:hollowtone/data/db.dart' as db;
 
 part 'audio_provider.g.dart';
 

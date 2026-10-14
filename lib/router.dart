@@ -1,13 +1,13 @@
 import 'package:go_router/go_router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:groovybox/data/db.dart';
-import 'package:groovybox/data/playlist_repository.dart';
-import 'package:groovybox/ui/screens/album_detail_screen.dart';
-import 'package:groovybox/ui/screens/library_screen.dart';
-import 'package:groovybox/ui/screens/player_screen.dart';
-import 'package:groovybox/ui/screens/playlist_detail_screen.dart';
-import 'package:groovybox/ui/screens/settings_screen.dart';
-import 'package:groovybox/ui/shell.dart';
+import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/data/playlist_repository.dart';
+import 'package:hollowtone/ui/screens/album_detail_screen.dart';
+import 'package:hollowtone/ui/screens/library_screen.dart';
+import 'package:hollowtone/ui/screens/player_screen.dart';
+import 'package:hollowtone/ui/screens/playlist_detail_screen.dart';
+import 'package:hollowtone/ui/screens/settings_screen.dart';
+import 'package:hollowtone/ui/shell.dart';
 
 // Route names
 class AppRoutes {

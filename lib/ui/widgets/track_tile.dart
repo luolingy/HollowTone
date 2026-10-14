@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:groovybox/data/db.dart' as db;
-import 'package:groovybox/ui/widgets/universal_image.dart';
+import 'package:hollowtone/data/db.dart' as db;
+import 'package:hollowtone/ui/widgets/universal_image.dart';
 import 'package:material_symbols_icons/symbols.dart';
 import 'package:styled_widget/styled_widget.dart';
 

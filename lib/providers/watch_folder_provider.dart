@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:groovybox/data/db.dart';
-import 'package:groovybox/data/track_repository.dart';
-import 'package:groovybox/providers/db_provider.dart';
+import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/data/track_repository.dart';
+import 'package:hollowtone/providers/db_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:drift/drift.dart';

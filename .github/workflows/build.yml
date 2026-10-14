@@ -1,4 +1,4 @@
-name: Build GroovyBox
+name: Build HollowTone
 
 on:
   workflow_dispatch:
@@ -45,11 +45,11 @@ jobs:
       - name: Build portable (zip)
         run: |
           flutter build windows --release --build-name=$env:BUILD_NAME --build-number=$env:BUILD_NUMBER
-          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath groovybox-windows-$env:BUILD_NAME-portable.zip
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath hollowtone-windows-$env:BUILD_NAME-portable.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-Windows-portable
-          path: groovybox-windows-${{ env.BUILD_NAME }}-portable.zip
+          name: hollowtone-Windows-portable
+          path: hollowtone-windows-${{ env.BUILD_NAME }}-portable.zip
       - name: Build installer (Inno Setup)
         continue-on-error: true
         shell: pwsh
@@ -61,13 +61,13 @@ jobs:
           (Get-Content setup.iss -Raw) `
             -replace '#define AppVersion "[^"]*"', ('#define AppVersion "' + $env:BUILD_NAME + '"') `
             -replace '#define BuildNumber "[^"]*"', ('#define BuildNumber "' + $env:BUILD_NUMBER + '"') `
-            -replace 'OutputBaseFilename=.*', ('OutputBaseFilename=groovybox-windows-' + $env:BUILD_NAME + '-setup') |
+            -replace 'OutputBaseFilename=.*', ('OutputBaseFilename=hollowtone-windows-' + $env:BUILD_NAME + '-setup') |
             Set-Content setup.iss -Encoding utf8
           & $iscc setup.iss
           Get-ChildItem Installer
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-Windows-installer
+          name: hollowtone-Windows-installer
           path: Installer/*.exe
           if-no-files-found: ignore
 
@@ -94,11 +94,11 @@ jobs:
         run: flutter pub get
       - name: Build
         run: flutter build linux --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
-      - run: tar -czf groovybox-linux-${{ env.BUILD_NAME }}.tar.gz -C build/linux/x64/release/bundle .
+      - run: tar -czf hollowtone-linux-${{ env.BUILD_NAME }}.tar.gz -C build/linux/x64/release/bundle .
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-Linux
-          path: groovybox-linux-${{ env.BUILD_NAME }}.tar.gz
+          name: hollowtone-Linux
+          path: hollowtone-linux-${{ env.BUILD_NAME }}.tar.gz
 
   macos:
     if: inputs.build_macos
@@ -125,12 +125,12 @@ jobs:
         run: flutter build macos --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - run: |
           cd build/macos/Build/Products/Release
-          zip -r ../../../../../groovybox-macos-${{ env.BUILD_NAME }}.zip .
+          zip -r ../../../../../hollowtone-macos-${{ env.BUILD_NAME }}.zip .
           cd -
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-macOS
-          path: groovybox-macos-${{ env.BUILD_NAME }}.zip
+          name: hollowtone-macOS
+          path: hollowtone-macos-${{ env.BUILD_NAME }}.zip
 
   android:
     if: inputs.build_android
@@ -187,7 +187,7 @@ jobs:
         run: flutter build apk --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-Android
+          name: hollowtone-Android
           path: build/app/outputs/flutter-apk/*.apk
 
   ios:
@@ -267,5 +267,5 @@ jobs:
         run: flutter build ipa --release --build-name=$BUILD_NAME --build-number=$BUILD_NUMBER
       - uses: actions/upload-artifact@v4
         with:
-          name: groovybox-iOS
+          name: hollowtone-iOS
           path: build/ios/ipa/*.ipa
