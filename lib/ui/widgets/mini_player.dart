@@ -632,10 +632,7 @@ class _DesktopMiniPlayer extends HookConsumerWidget {
                     padding: const EdgeInsets.all(16),
                     itemCount: playlist.medias.length,
                     buildDefaultDragHandles: false,
-                    onReorder: (oldIndex, newIndex) {
-                      if (oldIndex < newIndex) {
-                        newIndex -= 1;
-                      }
+                    onReorderItem: (oldIndex, newIndex) {
                       player.move(oldIndex, newIndex);
                     },
                     itemBuilder: (context, index) {

@@ -1418,10 +1418,7 @@ class _QueueView extends HookConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
                 itemCount: playlist.medias.length,
                 buildDefaultDragHandles: true,
-                onReorder: (oldIndex, newIndex) {
-                  if (oldIndex < newIndex) {
-                    newIndex -= 1;
-                  }
+                onReorderItem: (oldIndex, newIndex) {
                   player.move(oldIndex, newIndex);
                 },
                 itemBuilder: (context, index) {

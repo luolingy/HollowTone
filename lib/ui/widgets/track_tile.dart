@@ -49,7 +49,7 @@ class TrackTile extends StatelessWidget {
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (leading != null) leading!,
+              ?leading,
               AspectRatio(
                 aspectRatio: 1,
                 child: UniversalImage(

@@ -184,8 +184,7 @@ class PlaylistDetailScreen extends HookConsumerWidget {
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           buildDefaultDragHandles: !selecting,
-                          onReorder: (oldIndex, newIndex) async {
-                            if (oldIndex < newIndex) newIndex -= 1;
+                          onReorderItem: (oldIndex, newIndex) async {
                             final ids = tracks.map((t) => t.id).toList();
                             final moved = ids.removeAt(oldIndex);
                             ids.insert(newIndex, moved);

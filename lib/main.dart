@@ -9,7 +9,6 @@ import 'package:hollowtone/providers/audio_provider.dart';
 import 'package:hollowtone/providers/theme_provider.dart';
 import 'package:hollowtone/router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:audio_service/audio_service.dart' as audio_service;
 
