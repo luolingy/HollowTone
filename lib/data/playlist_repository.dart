@@ -1,4 +1,7 @@
 import 'package:drift/drift.dart';
+import 'package:hollowtone/logic/cloud_api.dart';
+import 'package:hollowtone/logic/sync_service.dart';
+import 'package:hollowtone/providers/cloud_sync_provider.dart';
 import 'package:hollowtone/providers/db_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'db.dart';
@@ -9,6 +12,36 @@ part 'playlist_repository.g.dart';
 class PlaylistRepository extends _$PlaylistRepository {
   @override
   FutureOr<void> build() {}
+
+  /// Marks a playlist as needing a cloud-sync push (no-op when unconfigured).
+  Future<void> _markCloudDirty(int playlistId) async {
+    try {
+      final cloud = ref.read(cloudSyncProvider);
+      if (!cloud.isConfigured) return;
+      final api = HollowToneApi(baseUrl: cloud.serverUrl, token: cloud.token);
+      await SyncService(
+        db: ref.read(databaseProvider),
+        api: api,
+      ).markPlaylistDirty(playlistId);
+    } catch (_) {
+      // Local edits must never break on sync bookkeeping.
+    }
+  }
+
+  /// Pushes a cloud tombstone for [playlistId] before it is deleted locally.
+  Future<void> _pushCloudDelete(int playlistId) async {
+    try {
+      final cloud = ref.read(cloudSyncProvider);
+      if (!cloud.isConfigured) return;
+      final api = HollowToneApi(baseUrl: cloud.serverUrl, token: cloud.token);
+      await SyncService(
+        db: ref.read(databaseProvider),
+        api: api,
+      ).pushPlaylistDelete(playlistId);
+    } catch (_) {
+      // Ignore; deletion should still proceed locally.
+    }
+  }
 
   // --- Playlists ---
 
@@ -40,7 +73,10 @@ class PlaylistRepository extends _$PlaylistRepository {
 
   Future<int> createPlaylist(String name) async {
     final db = ref.read(databaseProvider);
-    return db.into(db.playlists).insert(PlaylistsCompanion.insert(name: name));
+    final id =
+        await db.into(db.playlists).insert(PlaylistsCompanion.insert(name: name));
+    await _markCloudDirty(id);
+    return id;
   }
 
   Future<void> addToPlaylist(int playlistId, int trackId) async {
@@ -65,6 +101,7 @@ class PlaylistRepository extends _$PlaylistRepository {
           ),
           mode: InsertMode.insertOrIgnore, // Prevent dupes if needed, or allow
         );
+    await _markCloudDirty(playlistId);
   }
 
   /// Persists a custom track order for [playlistId].
@@ -83,10 +120,12 @@ class PlaylistRepository extends _$PlaylistRepository {
             .write(PlaylistEntriesCompanion(position: Value(entry.$1)));
       }
     });
+    await _markCloudDirty(playlistId);
   }
 
   Future<void> deletePlaylist(int playlistId) async {
     final db = ref.read(databaseProvider);
+    await _pushCloudDelete(playlistId);
     // entries cascade delete
     await (db.delete(db.playlists)..where((p) => p.id.equals(playlistId))).go();
   }
@@ -97,6 +136,7 @@ class PlaylistRepository extends _$PlaylistRepository {
           (e) => e.playlistId.equals(playlistId) & e.trackId.equals(trackId),
         ))
         .go();
+    await _markCloudDirty(playlistId);
   }
 
   // --- Albums ---

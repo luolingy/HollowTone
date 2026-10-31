@@ -6,6 +6,7 @@ import 'package:hollowtone/logic/mpv_hot_restart_cleaner.dart';
 import 'package:hollowtone/logic/tray_helpers.dart';
 import 'package:hollowtone/logic/window_helpers.dart';
 import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/cloud_sync_provider.dart';
 import 'package:hollowtone/providers/theme_provider.dart';
 import 'package:hollowtone/router.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -85,6 +86,20 @@ class _HollowToneAppState extends ConsumerState<HollowToneApp> {
             .repairTracksWithMissingInfo();
       } catch (e) {
         debugPrint('Track metadata repair failed: $e');
+      }
+    });
+    // Kick off a background cloud sync if the user has configured and enabled
+    // automatic sync.
+    Future(() async {
+      try {
+        // Give the settings/cloud providers a moment to load persisted state.
+        await Future<void>.delayed(const Duration(seconds: 2));
+        final cloud = ref.read(cloudSyncProvider);
+        if (cloud.isConfigured && cloud.autoSync) {
+          await ref.read(cloudSyncProvider.notifier).syncNow();
+        }
+      } catch (e) {
+        debugPrint('Cloud auto-sync failed: $e');
       }
     });
   }

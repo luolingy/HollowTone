@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/logic/cloud_api.dart';
+import 'package:hollowtone/providers/cloud_sync_provider.dart';
 import 'package:hollowtone/providers/db_provider.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:drift/drift.dart';
@@ -223,7 +225,8 @@ bool isRemoteStreamScheme(String scheme) =>
 /// Whether [path] is a remote-stream protocol path this app handles.
 bool isRemoteStreamPath(String path) =>
     path.startsWith('$remoteStreamScheme://') ||
-    path.startsWith('$legacyRemoteStreamScheme://');
+    path.startsWith('$legacyRemoteStreamScheme://') ||
+    path.startsWith('$remoteStreamScheme://cloud/');
 
 // URL resolver for secure protocol URLs
 class RemoteUrlResolver {
@@ -237,8 +240,23 @@ class RemoteUrlResolver {
   /// Resolves a HollowTone protocol URL to an actual streaming URL
   Future<String?> resolveUrl(String protocolUrl) async {
     final uri = Uri.parse(protocolUrl);
-    if (!isRemoteStreamScheme(uri.scheme) || uri.host != 'remote') {
+    if (!isRemoteStreamScheme(uri.scheme)) {
       return null; // Not a protocol URL we handle
+    }
+
+    // Cloud tracks synced from the personal server: hollowtone://cloud/<guid>
+    if (uri.host == 'cloud') {
+      final segs = uri.pathSegments;
+      if (segs.isEmpty) return null;
+      final guid = segs.first;
+      final cloud = ref.read(cloudSyncProvider);
+      if (!cloud.isConfigured) return null;
+      final api = HollowToneApi(baseUrl: cloud.serverUrl, token: cloud.token);
+      return api.streamUrl(guid);
+    }
+
+    if (uri.host != 'remote') {
+      return null;
     }
 
     final pathSegments = uri.pathSegments;
@@ -329,7 +347,8 @@ class RemoteUrlResolver {
   bool isProtocolUrl(String url) {
     try {
       final uri = Uri.parse(url);
-      return isRemoteStreamScheme(uri.scheme) && uri.host == 'remote';
+      return isRemoteStreamScheme(uri.scheme) &&
+          (uri.host == 'remote' || uri.host == 'cloud');
     } catch (e) {
       return false;
     }

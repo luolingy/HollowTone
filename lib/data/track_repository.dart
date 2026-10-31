@@ -1,10 +1,13 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:hollowtone/data/db.dart';
+import 'package:hollowtone/logic/cloud_api.dart';
 import 'package:hollowtone/logic/metadata_service.dart';
 import 'package:hollowtone/logic/lyrics_parser.dart';
 import 'package:hollowtone/logic/online_metadata_service.dart';
+import 'package:hollowtone/logic/sync_service.dart';
 import 'package:hollowtone/providers/audio_provider.dart';
+import 'package:hollowtone/providers/cloud_sync_provider.dart';
 import 'package:hollowtone/providers/db_provider.dart';
 import 'package:hollowtone/providers/settings_provider.dart';
 import 'package:path/path.dart' as p;
@@ -18,6 +21,37 @@ part 'track_repository.g.dart';
 class TrackRepository extends _$TrackRepository {
   @override
   FutureOr<void> build() {}
+
+  /// Marks a local track as needing a cloud-sync push, if cloud sync is
+  /// configured. Failures are swallowed so local edits never break playback.
+  Future<void> _markCloudDirty(int trackId) async {
+    try {
+      final cloud = ref.read(cloudSyncProvider);
+      if (!cloud.isConfigured) return;
+      final api = HollowToneApi(baseUrl: cloud.serverUrl, token: cloud.token);
+      await SyncService(
+        db: ref.read(databaseProvider),
+        api: api,
+      ).markTrackDirty(trackId);
+    } catch (e) {
+      debugPrint('Mark track dirty failed: $e');
+    }
+  }
+
+  /// Pushes a cloud tombstone for [trackId] before it is deleted locally.
+  Future<void> _pushCloudDelete(int trackId) async {
+    try {
+      final cloud = ref.read(cloudSyncProvider);
+      if (!cloud.isConfigured) return;
+      final api = HollowToneApi(baseUrl: cloud.serverUrl, token: cloud.token);
+      await SyncService(
+        db: ref.read(databaseProvider),
+        api: api,
+      ).pushTrackDelete(trackId);
+    } catch (e) {
+      debugPrint('Push track delete failed: $e');
+    }
+  }
 
   Stream<List<Track>> watchAllTracks() {
     final db = ref.watch(databaseProvider);
@@ -233,6 +267,7 @@ class TrackRepository extends _$TrackRepository {
         album: Value(album),
       ),
     );
+    await _markCloudDirty(trackId);
   }
 
   /// Replaces the cover art of [trackId] with a user-provided image.
@@ -249,6 +284,7 @@ class TrackRepository extends _$TrackRepository {
     await (db.update(db.tracks)..where((t) => t.id.equals(trackId))).write(
       TracksCompanion(artUri: Value(newPath)),
     );
+    await _markCloudDirty(trackId);
 
     // Remove the previous internal art file now that nothing references it.
     final oldArt = track.artUri;
@@ -348,6 +384,10 @@ class TrackRepository extends _$TrackRepository {
     )..where((t) => t.id.equals(trackId))).getSingleOrNull();
     if (track == null) return;
 
+    // Push a cloud tombstone before removing the local row so other devices
+    // remove their copies too.
+    await _pushCloudDelete(trackId);
+
     // 2. Delete from DB (cascade should handle playlist entries if configured, but we didn't set cascade on playlistEntries -> tracks properly maybe? CHECK DB)
     // In db.dart: IntColumn get trackId => integer().references(Tracks, #id, onDelete: KeyAction.cascade)();
     // So DB deletion cascades to entries.
@@ -402,6 +442,7 @@ class TrackRepository extends _$TrackRepository {
     await (db.update(db.tracks)..where((t) => t.id.equals(trackId))).write(
       TracksCompanion(lyrics: Value(lyricsJson)),
     );
+    await _markCloudDirty(trackId);
 
     // Update current track provider if this is the current track
     final currentTrackNotifier = ref.read(currentTrackProvider.notifier);

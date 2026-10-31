@@ -4,6 +4,7 @@ import 'package:gap/gap.dart';
 import 'package:hollowtone/data/track_repository.dart';
 
 import 'package:hollowtone/providers/settings_provider.dart';
+import 'package:hollowtone/providers/cloud_sync_provider.dart';
 import 'package:hollowtone/providers/theme_provider.dart';
 import 'package:hollowtone/providers/watch_folder_provider.dart';
 import 'package:hollowtone/providers/remote_provider.dart';
@@ -314,6 +315,9 @@ class SettingsScreen extends HookConsumerWidget {
                     ),
                   ),
 
+                  // Cloud Sync Section
+                  _buildCloudSyncCard(context, ref),
+
                   // Player Settings Section
                   Card(
                     margin: EdgeInsets.zero,
@@ -558,6 +562,10 @@ class SettingsScreen extends HookConsumerWidget {
             Center(child: Text('Error loading settings: $error')),
       ),
     );
+  }
+
+  Widget _buildCloudSyncCard(BuildContext context, WidgetRef ref) {
+    return const _CloudSyncCard();
   }
 
   Widget _buildAboutCard(BuildContext context) {
@@ -875,6 +883,205 @@ class SettingsScreen extends HookConsumerWidget {
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
             child: Text('reset'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Cloud-sync settings card: sign in to a personal server, run a sync, and
+/// toggle startup auto-sync. Implemented as a StatefulWidget (own controllers
+/// and busy flag) so it stays self-contained and avoids hook-order pitfalls.
+class _CloudSyncCard extends ConsumerStatefulWidget {
+  const _CloudSyncCard();
+
+  @override
+  ConsumerState<_CloudSyncCard> createState() => _CloudSyncCardState();
+}
+
+class _CloudSyncCardState extends ConsumerState<_CloudSyncCard> {
+  final _serverCtrl = TextEditingController();
+  final _userCtrl = TextEditingController();
+  final _passCtrl = TextEditingController();
+  bool _busy = false;
+  String? _status;
+  bool _seeded = false;
+
+  @override
+  void dispose() {
+    _serverCtrl.dispose();
+    _userCtrl.dispose();
+    _passCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _run(Future<String?> Function() action) async {
+    setState(() {
+      _busy = true;
+      _status = null;
+    });
+    final err = await action();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _status = err;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(err ?? 'cloudSyncDone'.tr())),
+    );
+  }
+
+  Widget _statusLine(CloudSyncState cloud) {
+    final color = Theme.of(context).colorScheme.error;
+    if (_status != null) {
+      return Text(_status!, style: TextStyle(color: color));
+    }
+    if (cloud.lastError != null) {
+      return Text(cloud.lastError!, style: TextStyle(color: color));
+    }
+    if (cloud.lastSyncAt != null) {
+      return Text(
+        '${'cloudLastSync'.tr()}: ${cloud.lastSyncAt!.toLocal()}',
+        style: Theme.of(context).textTheme.bodySmall,
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cloud = ref.watch(cloudSyncProvider);
+    if (!_seeded) {
+      _seeded = true;
+      _serverCtrl.text = cloud.serverUrl;
+      _userCtrl.text = cloud.username;
+    }
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'cloudSync'.tr(),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ).padding(horizontal: 16, top: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'cloudSyncDescription'.tr(),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: _serverCtrl,
+                  enabled: !cloud.isConfigured,
+                  decoration: InputDecoration(
+                    labelText: 'cloudServerUrl'.tr(),
+                    hintText: 'http://192.168.1.10:8080',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const Gap(12),
+                TextField(
+                  controller: _userCtrl,
+                  enabled: !cloud.isConfigured,
+                  decoration: InputDecoration(
+                    labelText: 'cloudUsername'.tr(),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const Gap(12),
+                if (!cloud.isConfigured)
+                  TextField(
+                    controller: _passCtrl,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      labelText: 'cloudPassword'.tr(),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                const Gap(12),
+                if (!cloud.isConfigured)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() => ref
+                                .read(cloudSyncProvider.notifier)
+                                .login(_serverCtrl.text.trim(),
+                                    _userCtrl.text.trim(), _passCtrl.text)),
+                        icon: const Icon(Icons.login),
+                        label: Text('cloudLogin'.tr()),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => _run(() => ref
+                                .read(cloudSyncProvider.notifier)
+                                .register(_serverCtrl.text.trim(),
+                                    _userCtrl.text.trim(), _passCtrl.text)),
+                        icon: const Icon(Icons.person_add),
+                        label: Text('cloudRegister'.tr()),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: (_busy || cloud.syncing)
+                            ? null
+                            : () => _run(() async {
+                                  final r = await ref
+                                      .read(cloudSyncProvider.notifier)
+                                      .syncNow();
+                                  return r?.error;
+                                }),
+                        icon: cloud.syncing
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.sync),
+                        label: Text('cloudSyncNow'.tr()),
+                      ),
+                      const Gap(12),
+                      TextButton.icon(
+                        onPressed: _busy
+                            ? null
+                            : () => ref
+                                .read(cloudSyncProvider.notifier)
+                                .logout(),
+                        icon: const Icon(Icons.logout),
+                        label: Text('cloudSignOut'.tr()),
+                      ),
+                    ],
+                  ),
+                if (cloud.isConfigured) ...[
+                  const Gap(8),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('cloudAutoSync'.tr()),
+                    value: cloud.autoSync,
+                    onChanged: (v) =>
+                        ref.read(cloudSyncProvider.notifier).setAutoSync(v),
+                  ),
+                  _statusLine(cloud),
+                ],
+              ],
+            ),
           ),
         ],
       ),
