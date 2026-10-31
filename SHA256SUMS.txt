@@ -1,0 +1,4 @@
+36df824dfd2e751fe1fa571d1e73fb9f9f3b0b38b196c303a64c6138a6ad24e7  HollowTone-v1.1.0-arm64-v8a.apk
+5a7221845655c3384d23c38a99cfd65bfcb82c5b8514e95461df4af6e775231c  HollowTone-v1.1.0-armeabi-v7a.apk
+de8f5ada2b0edd728bee16fdb96f41751b616546c77d3d901bf903852ee202ab  HollowTone-v1.1.0-universal.apk
+722e418abac25492add8e14899ba0d0f9a1fd67aeae747bb090d762f3170d0a0  HollowTone-v1.1.0-x86_64.apk
